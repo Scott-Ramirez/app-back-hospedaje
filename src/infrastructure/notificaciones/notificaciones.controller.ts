@@ -68,7 +68,11 @@ export class NotificacionesController {
   @Get()
   async listarPorUsuario(@Req() req: any) {
     const rol = req.user.rol;
-    // Administradores y supervisores ven las notificaciones dirigidas a su rol o a 'todos'
+    if (rol === 'recepcionista') {
+      // Los recepcionistas no reciben notificaciones de bandeja dirigidas a la administración
+      return [];
+    }
+
     const rolesPermitidos = [rol, 'todos'];
     if (rol === 'admin' || rol === 'supervisor') {
       rolesPermitidos.push('admin', 'supervisor');
