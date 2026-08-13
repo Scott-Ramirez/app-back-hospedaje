@@ -31,6 +31,8 @@ export class RegistrarUsuarioUseCase {
       rol: dto.rol as RolUsuario,
       activo: true,
       debeChangiarPassword: false,
+      horaInicioTurno: dto.horaInicioTurno || null,
+      horaFinTurno: dto.horaFinTurno || null,
     });
 
     // 4. Retornamos los datos del usuario creado omitiendo el hash por seguridad

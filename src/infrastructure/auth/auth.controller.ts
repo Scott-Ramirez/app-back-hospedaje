@@ -112,6 +112,36 @@ export class AuthController {
   }
 
   /**
+   * Endpoint PROTEGIDO para que el Administrador edite los detalles de un usuario.
+   * PATCH /api/v1/auth/usuarios/:id
+   */
+  @Patch('usuarios/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin') // <-- SÓLO EL ADMINISTRADOR TIENE ACCESO
+  @HttpCode(HttpStatus.OK)
+  async editarUsuario(
+    @Param('id') empleadoId: number,
+    @Body() dto: { nombre: string; rol: any; horaInicioTurno?: string | null; horaFinTurno?: string | null }
+  ) {
+    const empleado = await this.usuarioRepo.buscarPorId(empleadoId);
+    if (!empleado) {
+      throw new NotFoundException('El empleado especificado no existe.');
+    }
+
+    await this.usuarioRepo.actualizar(empleado.id, {
+      nombre: dto.nombre,
+      rol: dto.rol,
+      horaInicioTurno: dto.horaInicioTurno || null,
+      horaFinTurno: dto.horaFinTurno || null,
+    });
+
+    return {
+      mensaje: `Datos del usuario '${empleado.username}' actualizados correctamente.`,
+      usuarioId: empleado.id
+    };
+  }
+
+  /**
    * Endpoint PROTEGIDO para que el Administrador cambie el estado de un usuario (dar de baja o reactivar).
    * PATCH /api/v1/auth/usuarios/:id/estado
    */

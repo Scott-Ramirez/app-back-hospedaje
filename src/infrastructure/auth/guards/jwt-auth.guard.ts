@@ -43,6 +43,39 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       }
     }
 
+    // --- NUEVO: Validar turno de trabajo en tiempo de ejecución ---
+    if (user.horaInicioTurno && user.horaFinTurno) {
+      const horaPeru = new Intl.DateTimeFormat('es-PE', {
+        timeZone: 'America/Lima',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date());
+
+      const [actualH, actualM] = horaPeru.split(':').map(Number);
+      const [inicioH, inicioM] = user.horaInicioTurno.split(':').map(Number);
+      const [finH, finM] = user.horaFinTurno.split(':').map(Number);
+
+      const minutosActual = actualH * 60 + actualM;
+      const minutosInicio = inicioH * 60 + inicioM;
+      
+      // Margen de gracia de 30 minutos al fin del turno
+      const minutosFinConGracia = (finH * 60 + finM + 30) % 1440;
+
+      let esValido = false;
+      if (minutosInicio < minutosFinConGracia) {
+        esValido = minutosActual >= minutosInicio && minutosActual <= minutosFinConGracia;
+      } else {
+        esValido = minutosActual >= minutosInicio || minutosActual <= minutosFinConGracia;
+      }
+
+      if (!esValido) {
+        throw new ForbiddenException(
+          `Sesión bloqueada: Su turno de trabajo finalizó (${user.horaFinTurno}) y ha expirado el período de gracia.`
+        );
+      }
+    }
+
     return user;
   }
 }

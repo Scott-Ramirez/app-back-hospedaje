@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsIn, IsOptional } from 'class-validator';
 import { RolUsuario } from '../../../core/usuarios/entities/usuario.entity';
 
 export class RegistrarUsuarioDto {
@@ -20,4 +20,12 @@ export class RegistrarUsuarioDto {
     message: 'El rol enviado no es válido. Debe ser admin, supervisor o recepcionista.',
   })
   rol!: string; // <-- ¡CORRECCIÓN: Cambiado de RolUsuario a string para evitar el error de metadatos!
+
+  @IsString({ message: 'La hora de inicio de turno debe ser texto.' })
+  @IsOptional()
+  horaInicioTurno?: string;
+
+  @IsString({ message: 'La hora de fin de turno debe ser texto.' })
+  @IsOptional()
+  horaFinTurno?: string;
 }

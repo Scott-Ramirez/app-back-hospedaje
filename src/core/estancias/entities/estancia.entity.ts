@@ -30,8 +30,16 @@ export class Estancia {
     const salidaProg = this.fecha_salida_programada
       ? new Date(this.fecha_salida_programada)
       : new Date();
-    const diffMs = Math.max(0, salidaProg.getTime() - inicio.getTime());
-    return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+
+    // Obtener la diferencia en días calendario en la zona horaria de Perú (America/Lima)
+    const d1 = new Date(inicio.toLocaleString('en-US', { timeZone: 'America/Lima' }));
+    const d2 = new Date(salidaProg.toLocaleString('en-US', { timeZone: 'America/Lima' }));
+    
+    d1.setHours(0, 0, 0, 0);
+    d2.setHours(0, 0, 0, 0);
+
+    const diffMs = d2.getTime() - d1.getTime();
+    return Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
   }
 
   /** Precio de la habitación como número (0 si no está cargada). */
@@ -39,20 +47,31 @@ export class Estancia {
     return Number(this.habitacion?.precio || 0);
   }
 
-
-
   // ─────────────────────────────────────────────────────────────────────────────
   // Propiedades públicas expuestas en el JSON
   // ─────────────────────────────────────────────────────────────────────────────
 
   /**
    * Días/noches que se cuentan para cobro.
+   * - Si ya se registró el check-out real, se recalculan los días transcurridos reales.
    * - Si está en sobretiempo (fecha actual > fecha programada): días programados + días extra reales.
    * - Si está dentro de la estancia programada: solo los días programados.
    */
   @Expose()
   get diasTranscurridos(): number {
     const fin = this.fecha_salida_real ? new Date(this.fecha_salida_real) : new Date();
+
+    // Si ya finalizó la estancia (early check-out o normal)
+    if (this.fecha_salida_real) {
+      const inicio = new Date(this.fecha_entrada);
+      const d1 = new Date(inicio.toLocaleString('en-US', { timeZone: 'America/Lima' }));
+      const d2 = new Date(fin.toLocaleString('en-US', { timeZone: 'America/Lima' }));
+      d1.setHours(0, 0, 0, 0);
+      d2.setHours(0, 0, 0, 0);
+      const diffMs = d2.getTime() - d1.getTime();
+      return Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
     const salidaProg = this.fecha_salida_programada
       ? new Date(this.fecha_salida_programada)
       : fin;

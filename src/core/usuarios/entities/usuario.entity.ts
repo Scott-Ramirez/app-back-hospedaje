@@ -19,5 +19,7 @@ export class Usuario {
     public readonly nombre: string,
     public readonly rol: RolUsuario,
     public readonly activo: boolean,
+    public readonly horaInicioTurno?: string | null,
+    public readonly horaFinTurno?: string | null,
   ) {}
 }

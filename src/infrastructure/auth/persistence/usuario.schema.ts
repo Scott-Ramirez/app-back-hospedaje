@@ -45,6 +45,19 @@ export const UsuarioSchema = new EntitySchema<Usuario>({
       nullable: true,
     },
 
+    horaInicioTurno: {
+      type: String,
+      name: 'hora_inicio_turno',
+      nullable: true,
+      length: 5,
+    },
+    horaFinTurno: {
+      type: String,
+      name: 'hora_fin_turno',
+      nullable: true,
+      length: 5,
+    },
+
     /**
      * Flag de seguridad: obliga al usuario a cambiar su contraseña en el siguiente login.
      * Se activa automáticamente al crear cualquier usuario nuevo.

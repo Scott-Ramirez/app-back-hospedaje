@@ -14,12 +14,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: number; username: string; nombre: string; rol: string }) {
+  async validate(payload: { 
+    sub: number; 
+    username: string; 
+    nombre: string; 
+    rol: string; 
+    horaInicioTurno?: string | null; 
+    horaFinTurno?: string | null;
+  }) {
     return { 
       id: payload.sub, 
       username: payload.username, 
       nombre: payload.nombre, 
-      rol: payload.rol 
+      rol: payload.rol,
+      horaInicioTurno: payload.horaInicioTurno,
+      horaFinTurno: payload.horaFinTurno
     };
   }
 }
