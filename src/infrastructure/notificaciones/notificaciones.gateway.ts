@@ -47,4 +47,12 @@ export class NotificacionesGateway implements OnGatewayConnection, OnGatewayDisc
         console.log(`💸 Nueva solicitud de egreso de: ${payload.recepcionista} — S/. ${payload.monto}`);
         this.server.emit('solicitud.egreso.nueva', payload);
     }
+
+    /**
+     * Retransmite una notificación directa enviada por el recepcionista para admin/supervisor.
+     */
+    notificarDirecto(payload: any) {
+        console.log(`🔔 Notificación directa enviada por ${payload.remitenteNombre} para ${payload.destinatarioRol}`);
+        this.server.emit('notificacion.directa', payload);
+    }
 }

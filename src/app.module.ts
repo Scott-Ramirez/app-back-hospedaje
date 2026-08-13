@@ -25,6 +25,7 @@ import { GastoSchema } from './infrastructure/bitacora/persistence/gasto.schema'
 import { SolicitudEgresoSchema } from './infrastructure/bitacora/persistence/solicitud-egreso.schema';
 import { CobranzaSchema } from './infrastructure/cobranzas/persistence/cobranza.schema';
 import { CajaSesionSchema } from './infrastructure/cobranzas/persistence/caja-sesion.schema';
+import { NotificacionSchema } from './infrastructure/notificaciones/persistence/notificacion.schema';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { CajaSesionSchema } from './infrastructure/cobranzas/persistence/caja-se
           SolicitudEgresoSchema,
           CobranzaSchema,
           CajaSesionSchema,
+          NotificacionSchema,
         ],
         synchronize: true, // Auto-creará la tabla 'usuarios' e inyectará los cambios en caliente
         logging: true,
