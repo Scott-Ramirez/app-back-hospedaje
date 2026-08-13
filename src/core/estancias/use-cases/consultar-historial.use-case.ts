@@ -20,6 +20,7 @@ export class ConsultarHistorialUseCase {
     const datosFormateados = estancias.map(e => ({
       id: e.id,
       habitacionNumero: e.habitacion?.numero || 'N/A',
+      habitacionTipo: e.habitacion?.tipo || 'estandar',
       // 🌟 CORREGIDO: Cambiado de precioBase a precio para que coincida con tu entidad Habitacion
       habitacionPrecioBase: Number(e.habitacion?.precio || 0), 
       huespedNombre: e.huesped?.nombre || 'Anónimo',
