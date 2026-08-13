@@ -81,6 +81,21 @@ export const CajaSesionSchema = new EntitySchema<CajaSesion>({
       length: 255,
       nullable: true,
     },
+    conciliado: {
+      type: 'boolean',
+      default: true,
+    },
+    conciliado_por: {
+      type: 'varchar',
+      length: 100,
+      nullable: true,
+      name: 'conciliado_por',
+    },
+    notas_conciliacion: {
+      type: 'text',
+      nullable: true,
+      name: 'notas_conciliacion',
+    },
     createdAt: {
       type: 'timestamp',
       createDate: true,

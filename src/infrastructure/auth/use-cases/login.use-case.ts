@@ -30,22 +30,21 @@ export class LoginUseCase {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    // 4. Crear la carga útil (Payload) que viajará dentro del Token JWT
+    // 4. Determinar si el usuario debe cambiar su clave (Solo aplica para el Admin inicial generado por defecto)
+    const debeCambiar = usuario.rol === 'admin' && usuario.debeChangiarPassword === true;
+
     const payload = { 
       sub: usuario.id, 
       username: usuario.username, 
       nombre: usuario.nombre,
       rol: usuario.rol,
-      // Si el usuario debe cambiar su contraseña, lo incluimos en el JWT
-      // para que el guard pueda bloquearlo en todos los demás endpoints.
-      debeChangiarPassword: usuario.debeChangiarPassword ?? false,
+      debeChangiarPassword: debeCambiar,
     };
 
     // 5. Devolvemos los datos del usuario y su token firmado
     return {
       access_token: this.jwtService.sign(payload),
-      // El frontend debe leer este campo y redirigir al formulario de cambio de contraseña
-      debeChangiarPassword: usuario.debeChangiarPassword ?? false,
+      debeChangiarPassword: debeCambiar,
       usuario: {
         id: usuario.id,
         username: usuario.username,

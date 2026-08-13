@@ -4,17 +4,20 @@ export interface SolicitudEgreso {
   id: string;
   usuarioId: number;
   usuarioNombre: string;
-  monto: number;
+  monto: number;           // Monto estimado (paso 1)
+  montoReal?: number;      // Monto real liquidado (paso 2)
   concepto: string;
   descripcion?: string;
-  imagenUrl?: string;
-  estado: 'pendiente' | 'aprobado' | 'rechazado';
+  imagenUrl?: string;            // Boleta inicial (opcional en paso 1)
+  boletaLiquidacionUrl?: string; // Boleta de liquidación (paso 2)
+  estado: 'pendiente' | 'pre_aprobado' | 'liquidado' | 'rechazado' | 'aprobado';
   aprobadoPorId?: number | null;
   aprobadoPorNombre?: string | null;
   motivoRechazo?: string | null;
   sesionCajaId?: string | null;
   fecha: Date;
   fechaResolucion?: Date | null;
+  fechaLiquidacion?: Date | null;
 }
 
 export const SolicitudEgresoSchema = new EntitySchema<SolicitudEgreso>({
@@ -44,6 +47,17 @@ export const SolicitudEgresoSchema = new EntitySchema<SolicitudEgreso>({
         from: (v: string) => parseFloat(v),
       },
     },
+    montoReal: {
+      type: 'decimal',
+      precision: 10,
+      scale: 2,
+      nullable: true,
+      name: 'monto_real',
+      transformer: {
+        to: (v: number | undefined) => v ?? null,
+        from: (v: string | null) => (v !== null ? parseFloat(v) : undefined),
+      },
+    },
     concepto: {
       type: String,
       length: 255,
@@ -58,9 +72,15 @@ export const SolicitudEgresoSchema = new EntitySchema<SolicitudEgreso>({
       nullable: true,
       name: 'imagen_url',
     },
+    boletaLiquidacionUrl: {
+      type: String,
+      length: 500,
+      nullable: true,
+      name: 'boleta_liquidacion_url',
+    },
     estado: {
       type: 'enum',
-      enum: ['pendiente', 'aprobado', 'rechazado'],
+      enum: ['pendiente', 'pre_aprobado', 'liquidado', 'rechazado', 'aprobado'],
       default: 'pendiente',
     },
     aprobadoPorId: {
@@ -92,6 +112,11 @@ export const SolicitudEgresoSchema = new EntitySchema<SolicitudEgreso>({
       type: 'timestamp',
       nullable: true,
       name: 'fecha_resolucion',
+    },
+    fechaLiquidacion: {
+      type: 'timestamp',
+      nullable: true,
+      name: 'fecha_liquidacion',
     },
   },
 });

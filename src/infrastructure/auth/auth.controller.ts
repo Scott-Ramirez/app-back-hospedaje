@@ -102,6 +102,7 @@ export class AuthController {
       passwordHash: nuevoPasswordHash,
       resetPasswordToken: null,
       resetPasswordExpires: null,
+      debeChangiarPassword: false,
     });
 
     return {

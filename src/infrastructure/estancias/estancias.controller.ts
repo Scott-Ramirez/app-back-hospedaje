@@ -103,7 +103,7 @@ export class EstanciasController {
     if (!estancia) {
       throw new BadRequestException('Estancia no encontrada');
     }
-    return await this.cobranzaService.registrarPago({
+    const resultadoPago = await this.cobranzaService.registrarPago({
       estanciaId: id,
       huespedId: estancia.huespedId,
       monto: Number(dto.monto),
@@ -111,6 +111,29 @@ export class EstanciasController {
       concepto: dto.concepto || 'Abono de saldo de hospedaje',
       sesionCajaId: activa?.id || null,
     });
+
+    // Consultamos la suma real de todos los pagos registrados para esta estancia
+    const estadoCuenta = await this.cobranzaService.obtenerEstadoCuenta(id);
+    const nuevoTotal = estadoCuenta.totalPagos;
+    const datosActualizacion: any = { total_pagar: nuevoTotal };
+
+    // Si con el abono registrado se cubre el saldo del tiempo transcurrido, ampliamos automáticamente
+    // la fecha de salida programada hasta mañana a las 13:00 hrs para reflejar la estancia al día
+    const precioHabitacion = Number(estancia.habitacion?.precio || 0);
+    const montoRequerido = estancia.diasTranscurridos * precioHabitacion;
+
+    if (precioHabitacion > 0 && nuevoTotal >= montoRequerido) {
+      const proximaSalida = new Date();
+      if (proximaSalida.getHours() >= 13) {
+        proximaSalida.setDate(proximaSalida.getDate() + 1);
+      }
+      proximaSalida.setHours(13, 0, 0, 0);
+      datosActualizacion.fecha_salida_programada = proximaSalida;
+    }
+
+    await this.estanciaRepo.actualizar(id, datosActualizacion);
+
+    return resultadoPago;
   }
 
   /**

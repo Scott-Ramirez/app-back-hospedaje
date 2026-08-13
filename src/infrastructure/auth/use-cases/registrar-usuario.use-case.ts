@@ -23,14 +23,14 @@ export class RegistrarUsuarioUseCase {
     const passwordHash = await bcrypt.hash(dto.clave, saltRounds);
 
     // 3. Guardar en la base de datos a través del repositorio
-    // debeChangiarPassword: true => el nuevo empleado deberá cambiar su clave al primer ingreso
+    // debeChangiarPassword: false => el usuario utilizará la clave asignada directamente por el admin
     const nuevoUsuario = await this.usuarioRepo.crear({
       username: dto.username,
       passwordHash,
       nombre: dto.nombre,
       rol: dto.rol as RolUsuario,
       activo: true,
-      debeChangiarPassword: true,
+      debeChangiarPassword: false,
     });
 
     // 4. Retornamos los datos del usuario creado omitiendo el hash por seguridad

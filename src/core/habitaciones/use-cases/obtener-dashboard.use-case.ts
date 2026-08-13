@@ -18,14 +18,28 @@ export class ObtenerDashboardUseCase {
     // 2. Obtener estancias pendientes usando los parámetros de tu interfaz
     // Pasamos un límite alto (ej: 100) para asegurar que el dashboard analice 
     // todas las alertas del hotel y no se quede solo en las primeras 5
+    // 2. Obtener estancias pendientes usando los parámetros de la interfaz
     const estanciasActivas = await this.estanciaRepo.listar({ 
       estado: 'pendiente',
       limit: 100, 
       offset: 0 
     });
     
-    // Filtramos las que ya excedieron las 13:00 usando el getter de la entidad
-    const vencidas = estanciasActivas.filter(e => e.estaVencida);
+    // Mapear saldos pendientes reales y filtrar como vencidas únicamente las que tienen deuda activa > 0
+    const estanciasMapeadas = estanciasActivas.map(e => {
+      const montoPendiente = Math.max(0, Number(e.montoAcumulado || 0) - Number(e.total_pagar || 0));
+      const estaVencidaReal = Boolean(e.estaVencida) && montoPendiente > 0;
+      return {
+        estanciaId: e.id,
+        habitacionNumero: e.habitacion?.numero || 'N/A',
+        huespedNombre: e.huesped?.nombre || 'Anónimo',
+        fechaSalidaProgramada: e.fecha_salida_programada,
+        montoPendienteAproximado: montoPendiente,
+        estaVencida: estaVencidaReal
+      };
+    });
+
+    const vencidas = estanciasMapeadas.filter(e => e.estaVencida);
 
     return {
       resumen: {
@@ -36,13 +50,7 @@ export class ObtenerDashboardUseCase {
       },
       alertas: {
         totalVencidas: vencidas.length,
-        huespedesPorDesocupar: vencidas.map(e => ({
-          estanciaId: e.id,
-          habitacionNumero: e.habitacion?.numero || 'N/A',
-          huespedNombre: e.huesped?.nombre || 'Anónimo',
-          fechaSalidaProgramada: e.fecha_salida_programada,
-          montoPendienteAproximado: e.montoAcumulado
-        }))
+        huespedesPorDesocupar: estanciasMapeadas
       }
     };
   }

@@ -12,6 +12,10 @@ export class CajaSesion {
   descuadre?: number | null;
   estado: EstadoCajaSesion = 'abierta';
   observaciones?: string | null;
+  
+  conciliado: boolean = true;
+  conciliado_por?: string | null;
+  notas_conciliacion?: string | null;
 
   createdAt!: Date;
   updatedAt!: Date;

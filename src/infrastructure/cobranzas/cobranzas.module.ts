@@ -12,15 +12,19 @@ import { MySqlCajaSesionRepository } from './persistence/mysql-caja-sesion.repos
 import { CajaSesionService } from '../../core/cobranzas/services/caja-sesion.service';
 import { CajaSesionesController } from './caja-sesiones.controller';
 import { GastoSchema } from '../bitacora/persistence/gasto.schema';
+import { ActividadSchema } from '../bitacora/persistence/actividad.schema';
+import { NotificacionesModule } from '../notificaciones/notificaciones.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       CobranzaSchema, 
       CajaSesionSchema,
-      GastoSchema
+      GastoSchema,
+      ActividadSchema
     ]),
     forwardRef(() => EstanciasModule),
+    NotificacionesModule,
   ],
   controllers: [
     CajaSesionesController

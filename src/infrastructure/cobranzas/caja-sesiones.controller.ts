@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Query, Param, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -15,7 +15,8 @@ export class CajaSesionesController {
   @Roles('admin', 'supervisor', 'recepcionista')
   async abrirCaja(@Req() req: any, @Body() dto: { montoInicial: number }) {
     const usuarioId = req.user.id;
-    return await this.cajaSesionService.abrir(usuarioId, dto.montoInicial);
+    const usuarioNombre = req.user.nombre || req.user.username;
+    return await this.cajaSesionService.abrir(usuarioId, dto.montoInicial, usuarioNombre);
   }
 
   @Get('activa')
@@ -35,6 +36,17 @@ export class CajaSesionesController {
     return await this.cajaSesionService.cerrar(usuarioId, dto.montoReal, dto.observaciones);
   }
 
+  @Patch(':id/conciliar')
+  @Roles('admin', 'supervisor')
+  async conciliarCaja(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Body() dto: { notas: string }
+  ) {
+    const adminNombre = req.user.nombre || req.user.username;
+    return await this.cajaSesionService.conciliar(id, dto.notas, adminNombre);
+  }
+
   @Get('ultimo-cierre')
   @Roles('admin', 'supervisor', 'recepcionista')
   async obtenerUltimoCierre() {
@@ -43,13 +55,13 @@ export class CajaSesionesController {
   }
 
   @Get('pagos')
-  @Roles('admin', 'supervisor')
+  @Roles('admin', 'supervisor', 'recepcionista')
   async obtenerTodosLosPagos() {
     return await this.cajaSesionService.listarTodosLosPagos();
   }
 
   @Get('historial')
-  @Roles('admin', 'supervisor')
+  @Roles('admin', 'supervisor', 'recepcionista')
   async obtenerHistorial(
     @Query('page') page = 1,
     @Query('limit') limit = 10,

@@ -19,6 +19,24 @@ import { CajaSesionService } from '../../core/cobranzas/services/caja-sesion.ser
 // Directorio de almacenamiento local de imágenes
 const UPLOAD_DEST = join(process.cwd(), 'uploads', 'boletas');
 
+const fileInterceptorConfig = FileInterceptor('boleta', {
+  storage: diskStorage({
+    destination: UPLOAD_DEST,
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+      cb(null, `boleta-${unique}${extname(file.originalname)}`);
+    },
+  }),
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+    if (!allowed.includes(extname(file.originalname).toLowerCase())) {
+      return cb(new BadRequestException('Solo se permiten imágenes JPG, PNG, WEBP o PDF'), false);
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB máximo
+});
+
 @Controller('solicitudes-egreso')
 export class SolicitudesEgresoController {
   constructor(
@@ -32,29 +50,11 @@ export class SolicitudesEgresoController {
     private readonly cajaSesionService: CajaSesionService,
   ) {}
 
-  // ─── Recepcionista envía solicitud con imagen de boleta ───────────────────
+  // ─── PASO 1: Recepcionista crea solicitud (boleta opcional) ───────────────
   @Post()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(
-    FileInterceptor('boleta', {
-      storage: diskStorage({
-        destination: UPLOAD_DEST,
-        filename: (_req, file, cb) => {
-          const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-          cb(null, `boleta-${unique}${extname(file.originalname)}`);
-        },
-      }),
-      fileFilter: (_req, file, cb) => {
-        const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
-        if (!allowed.includes(extname(file.originalname).toLowerCase())) {
-          return cb(new BadRequestException('Solo se permiten imágenes JPG, PNG, WEBP o PDF'), false);
-        }
-        cb(null, true);
-      },
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB máximo
-    }),
-  )
+  @UseInterceptors(fileInterceptorConfig)
   async crearSolicitud(
     @Req() req: any,
     @UploadedFile() file: any,
@@ -107,7 +107,6 @@ export class SolicitudesEgresoController {
   @UseGuards(JwtAuthGuard)
   async listar(@Req() req: any) {
     if (req.user.rol === 'recepcionista') {
-      // El recepcionista sólo ve sus propias solicitudes
       return await this.solicitudRepo.find({
         where: { usuarioId: req.user.id },
         order: { fecha: 'DESC' },
@@ -125,16 +124,16 @@ export class SolicitudesEgresoController {
     });
   }
 
-  // ─── Admin/Supervisor APRUEBA la solicitud → descuenta de caja ───────────
-  @Patch(':id/aprobar')
+  // ─── PASO 1b: Admin/Supervisor PRE-APRUEBA (no descuenta caja) ───────────
+  @Patch(':id/pre-aprobar')
   @UseGuards(JwtAuthGuard)
-  async aprobar(
+  async preAprobar(
     @Param('id') id: string,
     @Req() req: any,
     @Body() body: { observaciones?: string },
   ) {
     if (req.user.rol === 'recepcionista') {
-      throw new ForbiddenException('No tiene permisos para aprobar solicitudes.');
+      throw new ForbiddenException('No tiene permisos para pre-aprobar solicitudes.');
     }
 
     const solicitud = await this.solicitudRepo.findOne({ where: { id } });
@@ -143,35 +142,23 @@ export class SolicitudesEgresoController {
       throw new BadRequestException(`La solicitud ya fue ${solicitud.estado}.`);
     }
 
-    // Actualizar estado
-    solicitud.estado = 'aprobado';
+    solicitud.estado = 'pre_aprobado';
     solicitud.aprobadoPorId = req.user.id;
     solicitud.aprobadoPorNombre = req.user.nombre || req.user.username;
     solicitud.fechaResolucion = new Date();
     await this.solicitudRepo.save(solicitud);
 
-    // Crear el gasto real en caja
-    const gasto = this.gastoRepo.create({
-      usuario: solicitud.usuarioNombre,
-      monto: solicitud.monto,
-      concepto: `[Aprobado por ${solicitud.aprobadoPorNombre}] ${solicitud.concepto}`,
-      sesionCajaId: solicitud.sesionCajaId || undefined,
-    });
-    await this.gastoRepo.save(gasto);
-
     // Registrar en bitácora
-    const actividad = this.actividadRepo.create({
+    await this.actividadRepo.save(this.actividadRepo.create({
       usuario: req.user.nombre || req.user.username,
-      accion: 'EGRESO_APROBADO',
-      descripcion: `Aprobó egreso de S/. ${solicitud.monto.toFixed(2)} de ${solicitud.usuarioNombre}: ${solicitud.concepto}`,
-    });
-    await this.actividadRepo.save(actividad);
+      accion: 'EGRESO_PRE_APROBADO',
+      descripcion: `Pre-aprobó egreso estimado de S/. ${solicitud.monto.toFixed(2)} de ${solicitud.usuarioNombre}: ${solicitud.concepto}`,
+    }));
 
-    // Notificar al recepcionista que su solicitud fue aprobada
-    console.log(`[WebSocket Server] Emitiendo 'solicitud.egreso.resuelta' para el recepcionista ID ${solicitud.usuarioId} (Monto: S/. ${solicitud.monto})`);
-    this.notificacionesGateway.server.emit('solicitud.egreso.resuelta', {
+    // Notificar al recepcionista para que pueda comprar
+    this.notificacionesGateway.server.emit('solicitud.egreso.pre_aprobada', {
       id: solicitud.id,
-      estado: 'aprobado',
+      estado: 'pre_aprobado',
       recepcionistaId: solicitud.usuarioId,
       aprobadoPor: solicitud.aprobadoPorNombre,
       monto: solicitud.monto,
@@ -179,10 +166,126 @@ export class SolicitudesEgresoController {
       timestamp: solicitud.fechaResolucion,
     });
 
-    return { message: 'Solicitud aprobada y egreso registrado en caja.', solicitud };
+    return { message: 'Solicitud pre-aprobada. El recepcionista puede realizar la compra.', solicitud };
   }
 
-  // ─── Admin/Supervisor RECHAZA la solicitud ────────────────────────────────
+  // ─── PASO 2a: Recepcionista ADJUNTA BOLETA después de comprar ─────────────
+  @Patch(':id/adjuntar-boleta')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(fileInterceptorConfig)
+  async adjuntarBoleta(
+    @Param('id') id: string,
+    @Req() req: any,
+    @UploadedFile() file: any,
+    @Body() body: { montoReal: string },
+  ) {
+    const solicitud = await this.solicitudRepo.findOne({ where: { id } });
+    if (!solicitud) throw new NotFoundException('Solicitud no encontrada.');
+
+    // Solo el recepcionista dueño puede adjuntar
+    if (req.user.rol === 'recepcionista' && solicitud.usuarioId !== req.user.id) {
+      throw new ForbiddenException('Solo puede adjuntar boleta a sus propias solicitudes.');
+    }
+
+    if (solicitud.estado !== 'pre_aprobado') {
+      throw new BadRequestException('Solo se puede adjuntar boleta a solicitudes pre-aprobadas.');
+    }
+
+    const montoReal = parseFloat(body.montoReal);
+    if (isNaN(montoReal) || montoReal <= 0) {
+      throw new BadRequestException('El monto real debe ser mayor a 0.');
+    }
+
+    if (!file) {
+      throw new BadRequestException('Debe adjuntar la imagen de la boleta.');
+    }
+
+    solicitud.montoReal = montoReal;
+    solicitud.boletaLiquidacionUrl = `/uploads/boletas/${file.filename}`;
+    await this.solicitudRepo.save(solicitud);
+
+    // Notificar a admin/supervisor que la boleta está lista para liquidar
+    this.notificacionesGateway.server.emit('solicitud.egreso.boleta_adjuntada', {
+      id: solicitud.id,
+      recepcionista: solicitud.usuarioNombre,
+      montoEstimado: solicitud.monto,
+      montoReal,
+      concepto: solicitud.concepto,
+    });
+
+    return { message: 'Boleta adjuntada correctamente. Esperando liquidación.', solicitud };
+  }
+
+  // ─── PASO 2b: Admin/Supervisor LIQUIDA → descuenta de caja ───────────────
+  @Patch(':id/liquidar')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(fileInterceptorConfig)
+  async liquidar(
+    @Param('id') id: string,
+    @Req() req: any,
+    @UploadedFile() file: any,
+    @Body() body: { montoReal?: string; observaciones?: string },
+  ) {
+    if (req.user.rol === 'recepcionista') {
+      throw new ForbiddenException('No tiene permisos para liquidar solicitudes.');
+    }
+
+    const solicitud = await this.solicitudRepo.findOne({ where: { id } });
+    if (!solicitud) throw new NotFoundException('Solicitud no encontrada.');
+    if (solicitud.estado !== 'pre_aprobado') {
+      throw new BadRequestException(`Solo se pueden liquidar solicitudes pre-aprobadas. Estado actual: ${solicitud.estado}.`);
+    }
+
+    // El monto real puede venir del body (si el admin lo corrige) o del que subió el recepcionista
+    const montoFinal = body.montoReal
+      ? parseFloat(body.montoReal)
+      : (solicitud.montoReal ?? solicitud.monto);
+
+    if (isNaN(montoFinal) || montoFinal <= 0) {
+      throw new BadRequestException('El monto real debe ser mayor a 0.');
+    }
+
+    // Si el admin adjunta una nueva boleta, la usamos
+    if (file) {
+      solicitud.boletaLiquidacionUrl = `/uploads/boletas/${file.filename}`;
+    }
+
+    solicitud.estado = 'liquidado';
+    solicitud.montoReal = montoFinal;
+    solicitud.fechaLiquidacion = new Date();
+    await this.solicitudRepo.save(solicitud);
+
+    // Crear el gasto real en caja con el MONTO REAL
+    const gasto = this.gastoRepo.create({
+      usuario: solicitud.usuarioNombre,
+      monto: montoFinal,
+      concepto: `[Liquidado por ${req.user.nombre || req.user.username}] ${solicitud.concepto}`,
+      sesionCajaId: solicitud.sesionCajaId || undefined,
+    });
+    await this.gastoRepo.save(gasto);
+
+    // Registrar en bitácora
+    await this.actividadRepo.save(this.actividadRepo.create({
+      usuario: req.user.nombre || req.user.username,
+      accion: 'EGRESO_LIQUIDADO',
+      descripcion: `Liquidó egreso de S/. ${montoFinal.toFixed(2)} (estimado S/. ${solicitud.monto.toFixed(2)}) de ${solicitud.usuarioNombre}: ${solicitud.concepto}`,
+    }));
+
+    // Notificar al recepcionista
+    this.notificacionesGateway.server.emit('solicitud.egreso.resuelta', {
+      id: solicitud.id,
+      estado: 'liquidado',
+      recepcionistaId: solicitud.usuarioId,
+      aprobadoPor: req.user.nombre || req.user.username,
+      montoReal: montoFinal,
+      concepto: solicitud.concepto,
+      timestamp: solicitud.fechaLiquidacion,
+    });
+
+    return { message: `Egreso liquidado y registrado en caja por S/. ${montoFinal.toFixed(2)}.`, solicitud };
+  }
+
+  // ─── Admin/Supervisor RECHAZA (en cualquier etapa previa a liquidación) ───
   @Patch(':id/rechazar')
   @UseGuards(JwtAuthGuard)
   async rechazar(
@@ -196,8 +299,11 @@ export class SolicitudesEgresoController {
 
     const solicitud = await this.solicitudRepo.findOne({ where: { id } });
     if (!solicitud) throw new NotFoundException('Solicitud no encontrada.');
-    if (solicitud.estado !== 'pendiente') {
-      throw new BadRequestException(`La solicitud ya fue ${solicitud.estado}.`);
+    if (solicitud.estado === 'liquidado') {
+      throw new BadRequestException('No se puede rechazar una solicitud ya liquidada.');
+    }
+    if (solicitud.estado === 'rechazado') {
+      throw new BadRequestException('La solicitud ya fue rechazada.');
     }
 
     solicitud.estado = 'rechazado';
@@ -207,8 +313,6 @@ export class SolicitudesEgresoController {
     solicitud.fechaResolucion = new Date();
     await this.solicitudRepo.save(solicitud);
 
-    // Notificar al recepcionista que su solicitud fue rechazada
-    console.log(`[WebSocket Server] Emitiendo 'solicitud.egreso.resuelta' (RECHAZADA) para el recepcionista ID ${solicitud.usuarioId} (Monto: S/. ${solicitud.monto})`);
     this.notificacionesGateway.server.emit('solicitud.egreso.resuelta', {
       id: solicitud.id,
       estado: 'rechazado',
@@ -221,5 +325,16 @@ export class SolicitudesEgresoController {
     });
 
     return { message: 'Solicitud rechazada.', solicitud };
+  }
+
+  // ─── Legacy: mantener /aprobar por retrocompatibilidad ────────────────────
+  @Patch(':id/aprobar')
+  @UseGuards(JwtAuthGuard)
+  async aprobar(
+    @Param('id') id: string,
+    @Req() req: any,
+  ) {
+    // Redirige internamente al flujo de pre-aprobar
+    return this.preAprobar(id, req, {});
   }
 }

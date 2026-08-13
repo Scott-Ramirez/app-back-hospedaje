@@ -104,7 +104,7 @@ export class RegistrarHuespedConEstanciaUseCase {
         fecha_salida_programada:
           new Date(dto.fecha_salida_programada),
 
-        total_pagar: dto.total_pagar,
+        total_pagar: dto.pago_inicial || 0,
 
         estado:'pendiente',
 
