@@ -85,6 +85,16 @@ export class EstanciasController {
     return await this.cobranzaService.obtenerEstadoCuenta(id);
   }
 
+  @Get(':id')
+  @Roles('admin', 'supervisor', 'recepcionista')
+  async obtenerPorId(@Param('id') id: string) {
+    const estancia = await this.estanciaRepo.obtenerPorId(id);
+    if (!estancia) {
+      throw new BadRequestException('Estancia no encontrada');
+    }
+    return estancia;
+  }
+
   /**
    * Registra un pago o abono a cuenta de una estancia activa.
    */

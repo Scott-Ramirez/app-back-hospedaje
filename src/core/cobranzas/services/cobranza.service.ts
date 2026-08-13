@@ -94,10 +94,11 @@ export class CobranzaService {
 
   async obtenerEstadoCuenta(
     estanciaId: string,
-  ): Promise<{ deuda: number; totalCargos: number; totalPagos: number }> {
+  ): Promise<{ deuda: number; totalCargos: number; totalPagos: number; pagos: Cobranza[] }> {
     const movimientos = await this.cobranzaRepository.obtenerPorEstancia(estanciaId);
     let totalCargos = 0;
     let totalPagos = 0;
+    const pagosList: Cobranza[] = [];
 
     for (const movimiento of movimientos) {
       if (movimiento.tipo === TipoMovimiento.CARGO) {
@@ -105,6 +106,7 @@ export class CobranzaService {
       }
       if (movimiento.tipo === TipoMovimiento.PAGO) {
         totalPagos += Number(movimiento.monto);
+        pagosList.push(movimiento);
       }
     }
 
@@ -113,6 +115,7 @@ export class CobranzaService {
       deuda: deuda < 0 ? 0 : deuda,
       totalCargos,
       totalPagos,
+      pagos: pagosList,
     };
   }
 
