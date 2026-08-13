@@ -99,22 +99,15 @@ export class Estancia {
   }
 
   /**
-   * true solo si la fecha de salida pasó Y el huésped tiene una deuda real pendiente.
+   * true si el huésped tiene una deuda real sobre los días ya transcurridos.
    */
   @Expose()
   get estaVencida(): boolean {
     if (this.estado === 'finalizado' || this.estado === 'pagado') return false;
 
-    // Si aún no ha llegado la fecha de salida programada → no está vencida
-    const ahora = new Date();
-    const salidaProg = this.fecha_salida_programada
-      ? new Date(this.fecha_salida_programada)
-      : ahora;
-    if (ahora <= salidaProg) return false;
-
-    // Verificar si la deuda real hasta hoy supera S/. 0
+    // Verificar si el pago acumulado es menor al costo de los días ya transcurridos reales
     const pagado = Number(this.total_pagar || 0);
-    const deuda = Math.max(0, this.montoAcumulado - pagado);
-    return deuda > 0;
+    const deudaTranscurrida = this.diasTranscurridos * this._precio - pagado;
+    return deudaTranscurrida > 0;
   }
 }
