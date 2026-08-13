@@ -41,6 +41,28 @@ export const CajaSesionSchema = new EntitySchema<CajaSesion>({
         from: (value: string) => parseFloat(value),
       },
     },
+    monto_ingresos_efectivo: {
+      type: 'decimal',
+      precision: 10,
+      scale: 2,
+      default: 0,
+      transformer: {
+        to: (value: number) => value,
+        from: (value: string) => parseFloat(value),
+      },
+      name: 'monto_ingresos_efectivo',
+    },
+    monto_ingresos_digital: {
+      type: 'decimal',
+      precision: 10,
+      scale: 2,
+      default: 0,
+      transformer: {
+        to: (value: number) => value,
+        from: (value: string) => parseFloat(value),
+      },
+      name: 'monto_ingresos_digital',
+    },
     monto_egresos: {
       type: 'decimal',
       precision: 10,

@@ -7,6 +7,8 @@ export class CajaSesion {
   fecha_cierre?: Date | null;
   monto_inicial!: number;
   monto_ingresos!: number;
+  monto_ingresos_efectivo: number = 0;
+  monto_ingresos_digital: number = 0;
   monto_egresos!: number;
   monto_real_entregado?: number | null;
   descuadre?: number | null;

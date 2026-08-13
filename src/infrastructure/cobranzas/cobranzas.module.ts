@@ -11,6 +11,7 @@ import { CajaSesionSchema } from './persistence/caja-sesion.schema';
 import { MySqlCajaSesionRepository } from './persistence/mysql-caja-sesion.repository';
 import { CajaSesionService } from '../../core/cobranzas/services/caja-sesion.service';
 import { CajaSesionesController } from './caja-sesiones.controller';
+import { PagosEvidenciaController } from './pagos-evidencia.controller';
 import { GastoSchema } from '../bitacora/persistence/gasto.schema';
 import { ActividadSchema } from '../bitacora/persistence/actividad.schema';
 import { NotificacionesModule } from '../notificaciones/notificaciones.module';
@@ -27,7 +28,8 @@ import { NotificacionesModule } from '../notificaciones/notificaciones.module';
     NotificacionesModule,
   ],
   controllers: [
-    CajaSesionesController
+    CajaSesionesController,
+    PagosEvidenciaController
   ],
   providers: [
     {

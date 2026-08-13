@@ -82,9 +82,17 @@ export class CajaSesionService {
 
     // Sumar ingresos (sólo cobranzas de tipo PAGO)
     let ingresos = 0;
+    let ingresosEfectivo = 0;
+    let ingresosDigital = 0;
     for (const c of cobranzas) {
       if (c.tipo === 'pago') {
-        ingresos += Number(c.monto);
+        const monto = Number(c.monto);
+        ingresos += monto;
+        if (c.metodoPago === 'efectivo') {
+          ingresosEfectivo += monto;
+        } else {
+          ingresosDigital += monto;
+        }
       }
     }
 
@@ -95,6 +103,8 @@ export class CajaSesionService {
     }
 
     activa.monto_ingresos = ingresos;
+    activa.monto_ingresos_efectivo = ingresosEfectivo;
+    activa.monto_ingresos_digital = ingresosDigital;
     activa.monto_egresos = egresos;
 
     return activa;
@@ -107,16 +117,20 @@ export class CajaSesionService {
     }
 
     const ingresos = activa.monto_ingresos;
+    const ingresosEfectivo = activa.monto_ingresos_efectivo;
+    const ingresosDigital = activa.monto_ingresos_digital;
     const egresos = activa.monto_egresos;
     const inicial = activa.monto_inicial;
 
-    const esperado = inicial + ingresos - egresos;
-    const descuadre = Number(montoReal) - esperado;
+    const esperadoFisico = inicial + ingresosEfectivo - egresos;
+    const descuadre = Number(montoReal) - esperadoFisico;
     const esDescuadrado = Math.abs(descuadre) >= 0.01;
 
     const actualizada = await this.repository.actualizar(activa.id, {
       fecha_cierre: new Date(),
       monto_ingresos: ingresos,
+      monto_ingresos_efectivo: ingresosEfectivo,
+      monto_ingresos_digital: ingresosDigital,
       monto_egresos: egresos,
       monto_real_entregado: Number(montoReal),
       descuadre,
@@ -133,7 +147,7 @@ export class CajaSesionService {
       await this.actividadRepo.save(this.actividadRepo.create({
         usuario: recepcionista,
         accion: 'CIERRE_CAJA_DESCUADRE',
-        descripcion: `Cerró caja con descuadre de S/. ${descuadre.toFixed(2)} (Físico: S/. ${montoReal.toFixed(2)}, Esperado: S/. ${esperado.toFixed(2)})`,
+        descripcion: `Cerró caja con descuadre de S/. ${descuadre.toFixed(2)} (Físico: S/. ${montoReal.toFixed(2)}, Esperado: S/. ${esperadoFisico.toFixed(2)})`,
       }));
 
       // 2. Notificar por WebSocket en tiempo real a Admin/Supervisor
@@ -141,7 +155,7 @@ export class CajaSesionService {
         this.notificacionesGateway.server.emit('caja.descuadre_cierre', {
           tipo: 'descuadre_cierre',
           usuario: recepcionista,
-          montoEsperado: esperado,
+          montoEsperado: esperadoFisico,
           montoReal: Number(montoReal),
           descuadre,
           observaciones: observaciones || 'Sin observaciones',

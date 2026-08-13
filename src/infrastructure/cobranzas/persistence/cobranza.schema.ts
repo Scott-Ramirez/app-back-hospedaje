@@ -74,6 +74,12 @@ export const CobranzaSchema = new EntitySchema<Cobranza>({
       type: 'timestamp',
       updateDate: true,
     },
+    evidenciaUrl: {
+      type: 'varchar',
+      length: 500,
+      nullable: true,
+      name: 'evidencia_url',
+    },
     sesionCajaId: {
       type: 'uuid',
       nullable: true,

@@ -55,6 +55,7 @@ export class Cobranza {
   createdAt!: Date;
   updatedAt!: Date;
 
+  evidenciaUrl?: string | null;
 
   /**
    * Relaciones opcionales
