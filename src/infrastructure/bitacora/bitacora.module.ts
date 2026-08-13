@@ -12,6 +12,7 @@ import { SolicitudesEgresoController } from './solicitudes-egreso.controller';
 import { BitacoraInterceptor } from './bitacora.interceptor';
 import { NotificacionesModule } from '../notificaciones/notificaciones.module';
 import { CobranzasModule } from '../cobranzas/cobranzas.module';
+import { LimpiezaBitacoraJob } from './jobs/limpieza-bitacora.job';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { CobranzasModule } from '../cobranzas/cobranzas.module';
       provide: APP_INTERCEPTOR,
       useClass: BitacoraInterceptor,
     },
+    LimpiezaBitacoraJob,
   ],
   exports: [TypeOrmModule],
 })
