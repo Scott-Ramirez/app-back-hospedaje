@@ -12,7 +12,6 @@ import { ConfiguracionesModule } from './infrastructure/configuraciones/configur
 import { AuthModule } from './infrastructure/auth/auth.module';
 import { CobranzasModule } from './infrastructure/cobranzas/cobranzas.module';
 import { BitacoraModule } from './infrastructure/bitacora/bitacora.module';
-import { SeedModule } from './infrastructure/seed/seed.module';
 
 // Importamos los schemas para que el factory asíncrono los registre en TypeORM
 import { HuespedSchema } from './infrastructure/huespedes/persistence/huesped.schema';
@@ -73,7 +72,6 @@ import { NotificacionSchema } from './infrastructure/notificaciones/persistence/
     AuthModule,
     CobranzasModule,
     BitacoraModule,
-    SeedModule,
   ],
 })
 export class AppModule {}
