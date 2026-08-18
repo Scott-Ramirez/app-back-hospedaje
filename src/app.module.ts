@@ -33,6 +33,7 @@ import { ReservaSchema } from './infrastructure/reservas/persistence/reserva.sch
     // 1. Inicializa y carga las variables del archivo .env de forma GLOBAL
     ConfigModule.forRoot({
       isGlobal: true, 
+      envFilePath: ['.env', '../../.env', '../.env', '/apps/hospedaje_rayza/.env'],
     }),
     
     // 2. Conexión ASÍNCRONA: Espera pacientemente a que ConfigService tenga listos los datos del .env
