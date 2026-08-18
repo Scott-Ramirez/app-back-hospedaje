@@ -1,5 +1,6 @@
 import { Injectable, OnApplicationBootstrap, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import type { IUsuarioRepository } from '../../../core/usuarios/interfaces/usuario-repository.interface';
 
@@ -11,9 +12,71 @@ export class UsuarioSeederService implements OnApplicationBootstrap {
     @Inject('IUsuarioRepository')
     private readonly usuarioRepo: IUsuarioRepository,
     private readonly configService: ConfigService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async onApplicationBootstrap() {
+    await this.ejecutarAutoMigraciones();
+    await this.inicializarUsuarioAdmin();
+  }
+
+  /**
+   * Ejecuta automáticamente la creación de nuevas tablas y columnas
+   * sin necesidad de activar synchronize ni ejecutar scripts manuales.
+   */
+  private async ejecutarAutoMigraciones() {
+    try {
+      this.logger.log('Verificando y asegurando estructura de base de datos...');
+
+      // 1. Crear tabla de reservas (si no existe)
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS \`reservas\` (
+          \`id\` varchar(36) NOT NULL,
+          \`huesped_id\` varchar(36) NOT NULL,
+          \`habitacion_id\` varchar(36) NOT NULL,
+          \`fecha_ingreso\` datetime NOT NULL,
+          \`fecha_salida\` datetime NOT NULL,
+          \`monto_adelanto\` decimal(10,2) NOT NULL DEFAULT '0.00',
+          \`metodo_pago\` varchar(50) NOT NULL DEFAULT 'efectivo',
+          \`evidencia_url\` varchar(255) NULL,
+          \`observaciones\` text NULL,
+          \`estado\` enum('confirmada','cancelada','convertida') NOT NULL DEFAULT 'confirmada',
+          \`created_at\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+          \`updated_at\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+          PRIMARY KEY (\`id\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      // 2. Agregar columnas de gastos administrativos si no existen
+      const columnasGastos = [
+        { name: 'categoria', sql: "ALTER TABLE `gastos` ADD COLUMN `categoria` varchar(50) NULL DEFAULT 'caja_chica'" },
+        { name: 'comprobante_url', sql: "ALTER TABLE `gastos` ADD COLUMN `comprobante_url` varchar(255) NULL" },
+        { name: 'observaciones', sql: "ALTER TABLE `gastos` ADD COLUMN `observaciones` text NULL" },
+        { name: 'periodo_mes', sql: "ALTER TABLE `gastos` ADD COLUMN `periodo_mes` int NULL" },
+        { name: 'periodo_anio', sql: "ALTER TABLE `gastos` ADD COLUMN `periodo_anio` int NULL" },
+      ];
+
+      for (const col of columnasGastos) {
+        try {
+          const checkCol = await this.dataSource.query(
+            `SHOW COLUMNS FROM \`gastos\` LIKE '${col.name}'`
+          );
+          if (!checkCol || checkCol.length === 0) {
+            await this.dataSource.query(col.sql);
+            this.logger.log(`Columna '${col.name}' creada exitosamente en tabla 'gastos'.`);
+          }
+        } catch (errCol) {
+          // Si la tabla aún no se ha creado por TypeORM, continúa
+        }
+      }
+
+      this.logger.log('¡Estructura de base de datos verificada y lista!');
+    } catch (error) {
+      this.logger.error('Error durante la auto-migración de la base de datos:', error);
+    }
+  }
+
+  private async inicializarUsuarioAdmin() {
     this.logger.log('Verificando existencia de usuarios en la base de datos...');
 
     // 1. Jalamos las credenciales iniciales definidas en el archivo .env
