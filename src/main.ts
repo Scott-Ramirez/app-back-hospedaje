@@ -1,3 +1,12 @@
+import * as dotenv from 'dotenv';
+import { resolve } from 'path';
+
+// Carga .env desde directorio actual, raíz de proyecto o servidor
+dotenv.config({ path: resolve(process.cwd(), '.env') });
+dotenv.config({ path: resolve(process.cwd(), '../../.env') });
+dotenv.config({ path: resolve(process.cwd(), '../.env') });
+dotenv.config({ path: '/apps/hospedaje_rayza/.env' });
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
