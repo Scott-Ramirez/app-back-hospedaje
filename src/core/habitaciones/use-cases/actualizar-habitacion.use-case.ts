@@ -9,6 +9,9 @@ export class ActualizarHabitacionUseCase {
     const habitacion = await this.repository.obtenerPorId(id);
     if (!habitacion) throw new NotFoundException('Habitación no encontrada');
 
-    return await this.repository.actualizar(id, datos); // Asegúrate de tener 'actualizar' en tu repo
+    if (datos.estado) {
+      await this.repository.actualizarEstadoPorNumero(habitacion.numero, datos.estado);
+    }
+    return await this.repository.actualizar(id, datos);
   }
 }

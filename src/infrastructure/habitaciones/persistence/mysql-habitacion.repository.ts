@@ -12,10 +12,16 @@ export class MySqlHabitacionRepository implements IHabitacionRepository {
     private readonly repository: Repository<Habitacion>,
   ) {}
 
-  // ... (tus métodos actuales: obtenerTodos, obtenerPorId, etc. se mantienen igual)
-
   async obtenerTodos(): Promise<Habitacion[]> {
-    return await this.repository.find({ order: { numero: 'ASC' } });
+    const habitaciones = await this.repository.find();
+    return habitaciones.sort((a, b) => {
+      const numA = parseInt((a.numero || '').replace(/\D/g, ''), 10);
+      const numB = parseInt((b.numero || '').replace(/\D/g, ''), 10);
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+        return numA - numB;
+      }
+      return (a.numero || '').localeCompare(b.numero || '', undefined, { numeric: true, sensitivity: 'base' });
+    });
   }
 
   async obtenerPorId(id: string): Promise<Habitacion | null> {
@@ -50,6 +56,14 @@ export class MySqlHabitacionRepository implements IHabitacionRepository {
 
   async actualizarEstado(id: string, estado: EstadoHabitacion): Promise<void> {
     await this.repository.update(id, { estado });
+  }
+
+  async actualizarEstadoPorNumero(numero: string, estado: EstadoHabitacion): Promise<void> {
+    await this.repository.update({ numero } as any, { estado });
+  }
+
+  async obtenerTodasPorNumero(numero: string): Promise<Habitacion[]> {
+    return await this.repository.findBy({ numero } as any);
   }
 
   async obtenerDisponibles(): Promise<Habitacion[]> {

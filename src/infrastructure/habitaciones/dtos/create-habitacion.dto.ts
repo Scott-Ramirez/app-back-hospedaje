@@ -28,6 +28,11 @@ export class CreateHabitacionDto {
   @Transform(({ value }) => value === 'true' || value === true)
   ventilador?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  dos_camas?: boolean;
+
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsNotEmpty()
   @Min(0, { message: 'El precio no puede ser negativo' })

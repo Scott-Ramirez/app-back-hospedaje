@@ -21,10 +21,15 @@ export class FinalizarEstanciaUseCase {
       throw new Error('Esta estancia ya ha sido finalizada previamente');
     }
 
-    // 2. Cambiar el estado de la habitación a 'limpieza'
-    await this.habitacionRepo.actualizar(estancia.habitacionId, {
-      estado: 'limpieza' as any,
-    });
+    // 2. Cambiar el estado de todas las variantes de la habitación a 'limpieza'
+    const habitacionFinal = await this.habitacionRepo.obtenerPorId(estancia.habitacionId);
+    if (habitacionFinal) {
+      await this.habitacionRepo.actualizarEstadoPorNumero(habitacionFinal.numero, 'limpieza' as any);
+    } else {
+      await this.habitacionRepo.actualizar(estancia.habitacionId, {
+        estado: 'limpieza' as any,
+      });
+    }
 
     // 3. Finalizar la estancia e inyectar la fecha de salida real
     const estanciaActualizada = await this.estanciaRepo.actualizar(estanciaId, {

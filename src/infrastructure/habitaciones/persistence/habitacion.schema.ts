@@ -14,7 +14,6 @@ export const HabitacionSchema = new EntitySchema<Habitacion>({
     numero: {
       type: 'varchar',
       length: 10,
-      unique: true,
     },
     tipo: {
       type: 'enum',
@@ -29,6 +28,10 @@ export const HabitacionSchema = new EntitySchema<Habitacion>({
       default: true,
     },
     ventilador: {
+      type: 'boolean',
+      default: false,
+    },
+    dos_camas: {
       type: 'boolean',
       default: false,
     },

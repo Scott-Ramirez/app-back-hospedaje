@@ -10,6 +10,7 @@ export class Habitacion {
   aire_acondicionado: boolean = false;
   wifi: boolean = true;
   ventilador: boolean = false;
+  dos_camas: boolean = false;
   
   precio!: number;
   estado: EstadoHabitacion = 'disponible';

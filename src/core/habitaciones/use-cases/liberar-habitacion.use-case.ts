@@ -23,10 +23,8 @@ export class LiberarHabitacionUseCase {
       };
     }
 
-    // 3. Actualizamos el estado a disponible
-    await this.habitacionRepo.actualizar(habitacion.id, {
-      estado: 'disponible' as any,
-    });
+    // 3. Actualizamos el estado a disponible en TODAS las variantes con el mismo número físico
+    await this.habitacionRepo.actualizarEstadoPorNumero(habitacion.numero, 'disponible' as any);
 
     return {
       mensaje: `Habitación ${habitacion.numero} liberada con éxito y lista para recibir huéspedes.`,

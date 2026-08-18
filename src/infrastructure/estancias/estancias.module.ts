@@ -31,6 +31,8 @@ from '../habitaciones/habitaciones.module';
 import { CobranzasModule } 
 from '../cobranzas/cobranzas.module';
 import { CobranzaService } from '../../core/cobranzas/services/cobranza.service';
+import { ReservasModule } 
+from '../reservas/reservas.module';
 
 
 
@@ -47,6 +49,8 @@ import { CobranzaService } from '../../core/cobranzas/services/cobranza.service'
     forwardRef(() => HabitacionesModule),
 
     forwardRef(() => CobranzasModule),
+
+    forwardRef(() => ReservasModule),
 
   ],
 
@@ -76,6 +80,7 @@ import { CobranzaService } from '../../core/cobranzas/services/cobranza.service'
         'IHabitacionRepository',
         'IEstanciaRepository',
         CobranzaService,
+        'IReservaRepository',
       ],
 
       useFactory: (
@@ -83,6 +88,7 @@ import { CobranzaService } from '../../core/cobranzas/services/cobranza.service'
         haRepo,
         eRepo,
         cService,
+        rRepo,
       ) => 
 
         new RegistrarHuespedConEstanciaUseCase(
@@ -90,6 +96,7 @@ import { CobranzaService } from '../../core/cobranzas/services/cobranza.service'
           haRepo,
           eRepo,
           cService,
+          rRepo,
         ),
     },
 
@@ -168,6 +175,7 @@ import { CobranzaService } from '../../core/cobranzas/services/cobranza.service'
 
   exports: [
     'IEstanciaRepository',
+    RegistrarHuespedConEstanciaUseCase,
   ],
 
 

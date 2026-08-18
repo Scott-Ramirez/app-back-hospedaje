@@ -10,5 +10,6 @@ export interface IHabitacionRepository {
   actualizarEstado(id: string, estado: EstadoHabitacion): Promise<void>;
   eliminar(id: string): Promise<void>;
   obtenerDisponibles(): Promise<Habitacion[]>;
-  
+  actualizarEstadoPorNumero(numero: string, estado: EstadoHabitacion): Promise<void>;
+  obtenerTodasPorNumero(numero: string): Promise<Habitacion[]>;
 }

@@ -1,8 +1,9 @@
-import { Injectable, Inject, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, Optional, BadRequestException } from '@nestjs/common';
 
 import type { IHuespedRepository } from '../../huespedes/interfaces/huesped-repository.interface';
 import type { IHabitacionRepository } from '../../habitaciones/interfaces/habitacion-repository.interface';
 import type { IEstanciaRepository } from '../interfaces/estancia-repository.interface';
+import type { IReservaRepository } from '../../reservas/interfaces/reserva-repository.interface';
 
 import { CobranzaService } from '../../cobranzas/services/cobranza.service';
 
@@ -10,14 +11,9 @@ import { Estancia } from '../entities/estancia.entity';
 
 import type { RegistroInicialDto } from '../dtos/registro-inicial.dto';
 
-
-
 @Injectable()
 export class RegistrarHuespedConEstanciaUseCase {
-
-
   constructor(
-
     @Inject('IHuespedRepository')
     private readonly huespedRepository: IHuespedRepository,
 
@@ -29,42 +25,77 @@ export class RegistrarHuespedConEstanciaUseCase {
 
     private readonly cobranzaService: CobranzaService,
 
+    @Optional()
+    @Inject('IReservaRepository')
+    private readonly reservaRepository?: IReservaRepository,
   ) {}
-
-
 
   async execute(
     dto: RegistroInicialDto,
     sesionCajaId?: string,
+    esDesdeReserva: boolean = false,
   ): Promise<Estancia> {
-
-
     // ==========================
     // 1. Verificar habitación
     // ==========================
+    const habitacion = await this.habitacionRepository.obtenerPorId(dto.habitacionId);
 
-    const habitacion =
-      await this.habitacionRepository.obtenerPorId(
-        dto.habitacionId,
-      );
-
-
-    if(!habitacion){
-
-      throw new BadRequestException(
-        'La habitación no existe',
-      );
-
+    if (!habitacion) {
+      throw new BadRequestException('La habitación no existe');
     }
 
+    const esDisponible = typeof (habitacion as any).estaDisponible === 'function'
+      ? (habitacion as any).estaDisponible()
+      : habitacion.estado === 'disponible';
 
+    if (!esDisponible) {
+      throw new BadRequestException('La habitación no está disponible');
+    }
 
-    if(!habitacion.estaDisponible()){
+    // =========================================================================
+    // 1.1 Verificar cruce con reservas confirmadas (si no viene de una reserva)
+    // =========================================================================
+    if (!esDesdeReserva && this.reservaRepository) {
+      const ahora = new Date();
+      const fechaFinEstancia = dto.fecha_salida_programada
+        ? new Date(dto.fecha_salida_programada)
+        : new Date(ahora.getTime() + 24 * 60 * 60 * 1000);
 
-      throw new BadRequestException(
-        'La habitación no está disponible',
-      );
+      // Obtener todas las habitaciones para revisar variantes del mismo número físico
+      const todasHab = await this.habitacionRepository.obtenerTodos();
+      const idsMismoNumero = todasHab
+        .filter((h) => h.numero === habitacion.numero)
+        .map((h) => h.id);
 
+      let reservaConflicto: any = null;
+      for (const hid of idsMismoNumero) {
+        const reservasHab = await this.reservaRepository.obtenerPorHabitacionYFechas(
+          hid,
+          ahora,
+          fechaFinEstancia,
+        );
+        const encontrada = reservasHab.find((r) => r.estado === 'confirmada');
+        if (encontrada) {
+          reservaConflicto = encontrada;
+          break;
+        }
+      }
+
+      if (reservaConflicto) {
+        const inicioRes = new Date(reservaConflicto.fecha_inicio);
+        const diffHoras = (inicioRes.getTime() - ahora.getTime()) / (1000 * 60 * 60);
+
+        if (diffHoras <= 12) {
+          throw new BadRequestException(
+            `La habitación Nº ${habitacion.numero} tiene una reserva confirmada para hoy a nombre de '${reservaConflicto.huesped?.nombre || 'el cliente'}'. Debe procesar el ingreso desde el módulo de Reservas.`,
+          );
+        } else {
+          const fechaStr = inicioRes.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          throw new BadRequestException(
+            `Conflicto con Reserva: La habitación Nº ${habitacion.numero} tiene una reserva confirmada que inicia el ${fechaStr}. La estancia que intenta registrar cruza con la fecha de la reserva.`,
+          );
+        }
+      }
     }
 
 
@@ -116,8 +147,8 @@ export class RegistrarHuespedConEstanciaUseCase {
     // 4. Ocupar habitación
     // ==========================
 
-    await this.habitacionRepository.actualizarEstado(
-      habitacion.id,
+    await this.habitacionRepository.actualizarEstadoPorNumero(
+      habitacion.numero,
       'ocupado',
     );
 

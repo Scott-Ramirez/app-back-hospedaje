@@ -12,6 +12,7 @@ import { ConfiguracionesModule } from './infrastructure/configuraciones/configur
 import { AuthModule } from './infrastructure/auth/auth.module';
 import { CobranzasModule } from './infrastructure/cobranzas/cobranzas.module';
 import { BitacoraModule } from './infrastructure/bitacora/bitacora.module';
+import { ReservasModule } from './infrastructure/reservas/reservas.module';
 
 // Importamos los schemas para que el factory asíncrono los registre en TypeORM
 import { HuespedSchema } from './infrastructure/huespedes/persistence/huesped.schema';
@@ -25,6 +26,7 @@ import { SolicitudEgresoSchema } from './infrastructure/bitacora/persistence/sol
 import { CobranzaSchema } from './infrastructure/cobranzas/persistence/cobranza.schema';
 import { CajaSesionSchema } from './infrastructure/cobranzas/persistence/caja-sesion.schema';
 import { NotificacionSchema } from './infrastructure/notificaciones/persistence/notificacion.schema';
+import { ReservaSchema } from './infrastructure/reservas/persistence/reserva.schema';
 
 @Module({
   imports: [
@@ -56,8 +58,9 @@ import { NotificacionSchema } from './infrastructure/notificaciones/persistence/
           CobranzaSchema,
           CajaSesionSchema,
           NotificacionSchema,
+          ReservaSchema,
         ],
-        synchronize: true, // Auto-creará la tabla 'usuarios' e inyectará los cambios en caliente
+        synchronize: true, // Auto-creará la tabla 'reservas' en la DB
         logging: true,
       }),
     }),
@@ -72,6 +75,7 @@ import { NotificacionSchema } from './infrastructure/notificaciones/persistence/
     AuthModule,
     CobranzasModule,
     BitacoraModule,
+    ReservasModule,
   ],
 })
 export class AppModule {}
