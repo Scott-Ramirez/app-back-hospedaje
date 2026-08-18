@@ -41,19 +41,19 @@ export class UsuarioSeederService implements OnApplicationBootstrap {
     const username = (
       this.configService.get<string>('DEFAULT_ADMIN_USERNAME') ||
       process.env.DEFAULT_ADMIN_USERNAME ||
-      'admin'
+      'ADMIN'
     ).trim();
 
     const password = (
       this.configService.get<string>('DEFAULT_ADMIN_PASSWORD') ||
       process.env.DEFAULT_ADMIN_PASSWORD ||
-      'admin123!'
+      'Juan$ias92'
     ).trim();
 
     const nombre = (
       this.configService.get<string>('DEFAULT_ADMIN_NOMBRE') ||
       process.env.DEFAULT_ADMIN_NOMBRE ||
-      'Administrador General'
+      'Juan Eduardo Sias Fasabi'
     ).trim();
 
     this.logger.log(`Datos del Admin a sincronizar -> Usuario: '${username}', Nombre: '${nombre}'`);
