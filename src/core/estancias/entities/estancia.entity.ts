@@ -93,7 +93,7 @@ export class Estancia {
     }
 
     const diasCalculados = Math.max(1, diasCalendario);
-    return Math.min(this._diasProgramados, diasCalculados);
+    return diasCalculados;
   }
 
   /**
