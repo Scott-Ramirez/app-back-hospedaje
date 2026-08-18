@@ -52,18 +52,14 @@ export class Estancia {
   // ─────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Días/noches que se cuentan para cobro.
-   * - Si ya se registró el check-out real, se recalculan los días transcurridos reales.
-   * - Si está en sobretiempo (fecha actual > fecha programada): días programados + días extra reales.
-   * - Si está dentro de la estancia programada: solo los días programados.
+   * Días/noches que se cuentan para cobro considerando la hora de corte (13:00 hrs).
    */
   @Expose()
   get diasTranscurridos(): number {
-    const fin = this.fecha_salida_real ? new Date(this.fecha_salida_real) : new Date();
-
-    // Si ya finalizó la estancia (early check-out o normal)
+    // Si ya finalizó la estancia (check-out real)
     if (this.fecha_salida_real) {
       const inicio = new Date(this.fecha_entrada);
+      const fin = new Date(this.fecha_salida_real);
       const d1 = new Date(inicio.toLocaleString('en-US', { timeZone: 'America/Lima' }));
       const d2 = new Date(fin.toLocaleString('en-US', { timeZone: 'America/Lima' }));
       d1.setHours(0, 0, 0, 0);
@@ -72,19 +68,32 @@ export class Estancia {
       return Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
     }
 
-    const salidaProg = this.fecha_salida_programada
-      ? new Date(this.fecha_salida_programada)
-      : fin;
+    const ahora = new Date();
+    const ahoraLimaStr = ahora.toLocaleString('en-US', { timeZone: 'America/Lima' });
+    const ahoraLima = new Date(ahoraLimaStr);
 
-    let diasExtra = 0;
-    if (fin > salidaProg) {
-      const diffExtraMs = fin.getTime() - salidaProg.getTime();
-      if (diffExtraMs > 15 * 60 * 1000) { // tolerancia 15 min
-        diasExtra = Math.floor(diffExtraMs / (1000 * 60 * 60 * 24)) + 1;
-      }
+    const inicioLimaStr = new Date(this.fecha_entrada).toLocaleString('en-US', { timeZone: 'America/Lima' });
+    const inicioLima = new Date(inicioLimaStr);
+
+    // Hora de corte de hoy a las 13:00 hrs
+    const fechaCorteHoy = new Date(ahoraLima);
+    fechaCorteHoy.setHours(13, 0, 0, 0);
+
+    const dInicio = new Date(inicioLima);
+    dInicio.setHours(0, 0, 0, 0);
+
+    const dAhora = new Date(ahoraLima);
+    dAhora.setHours(0, 0, 0, 0);
+
+    let diasCalendario = Math.round((dAhora.getTime() - dInicio.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Si ya sobrepasamos las 13:00 hrs de hoy y el check-in fue anterior a las 13:00 de hoy
+    if (ahoraLima >= fechaCorteHoy) {
+      diasCalendario += 1;
     }
 
-    return this._diasProgramados + diasExtra;
+    const diasCalculados = Math.max(1, diasCalendario);
+    return Math.min(this._diasProgramados, diasCalculados);
   }
 
   /**
@@ -99,15 +108,14 @@ export class Estancia {
   }
 
   /**
-   * true si el huésped tiene una deuda real sobre los días ya transcurridos.
+   * true si el huésped tiene una deuda real sobre los días ya transcurridos a la fecha.
    */
   @Expose()
   get estaVencida(): boolean {
     if (this.estado === 'finalizado' || this.estado === 'pagado') return false;
 
-    // Verificar si el pago acumulado es menor al costo de los días ya transcurridos reales
     const pagado = Number(this.total_pagar || 0);
-    const deudaTranscurrida = this.diasTranscurridos * this._precio - pagado;
-    return deudaTranscurrida > 0;
+    const costoTranscurrido = this.diasTranscurridos * this._precio;
+    return costoTranscurrido > pagado;
   }
 }
