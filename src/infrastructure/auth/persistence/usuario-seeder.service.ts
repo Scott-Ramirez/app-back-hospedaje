@@ -47,7 +47,7 @@ export class UsuarioSeederService implements OnApplicationBootstrap {
     const password = (
       this.configService.get<string>('DEFAULT_ADMIN_PASSWORD') ||
       process.env.DEFAULT_ADMIN_PASSWORD ||
-      'Admin123*'
+      'admin123!'
     ).trim();
 
     const nombre = (
@@ -91,15 +91,14 @@ export class UsuarioSeederService implements OnApplicationBootstrap {
         }
         this.logger.log(`¡Usuario administrador '${username}' (${nombre}) sincronizado con éxito!`);
       } else {
-        // Si ya existe en MySQL (incluso si coincidió case-insensitive), forzamos la actualización exacta de username y nombre
-        if (usuarioExistente.nombre !== nombre || usuarioExistente.username !== username) {
-          this.logger.log(`Actualizando username a '${username}' y nombre a '${nombre}' para admin ID ${usuarioExistente.id}`);
-          await this.usuarioRepo.actualizar(usuarioExistente.id, {
-            username,
-            nombre,
-          });
-        }
-        this.logger.log(`El usuario administrador '${username}' (${nombre}) ya está al día.`);
+        // Si ya existe en MySQL, actualizamos username, nombre y contraseña del .env
+        this.logger.log(`Actualizando credenciales completas de '${username}' (${nombre})`);
+        await this.usuarioRepo.actualizar(usuarioExistente.id, {
+          username,
+          nombre,
+          passwordHash,
+        });
+        this.logger.log(`¡Usuario administrador '${username}' (${nombre}) ya está al día con su contraseña!`);
       }
     } catch (error) {
       this.logger.error('Error al intentar inicializar el usuario administrador:', error);
