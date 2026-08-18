@@ -40,16 +40,21 @@ export class MySqlEstanciaRepository implements IEstanciaRepository {
    * Incluye las relaciones para mostrar nombres de huéspedes y números de habitación.
    */
   async listar(filtros?: { estado?: string, limit?: number, offset?: number }): Promise<Estancia[]> {
-    return await this.repository.find({
+    const options: any = {
       where: filtros?.estado ? { estado: filtros.estado as any } : {},
       relations: {
         huesped: true,
         habitacion: true,
       },
       order: { createdAt: 'DESC' } as any,
-      take: filtros?.limit || 5,    // <--- Paginación: Registros por página
-      skip: filtros?.offset || 0,   // <--- Paginación: Registros que se salta
-    });
+    };
+
+    if (filtros?.limit) {
+      options.take = filtros.limit;
+      options.skip = filtros.offset || 0;
+    }
+
+    return await this.repository.find(options);
   }
 
   /**

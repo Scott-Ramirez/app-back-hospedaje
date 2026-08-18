@@ -67,12 +67,14 @@ export class EstanciasController {
   @Get()
   @Roles('admin', 'supervisor', 'recepcionista')
   async listar(
-    @Query('estado') estado ?: string,
-    @Query('page') page: number = 1
+    @Query('estado') estado?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return await this.listarEstanciasUseCase.execute({
       estado,
-      pagina: Number(page)
+      pagina: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
     });
   }
 
