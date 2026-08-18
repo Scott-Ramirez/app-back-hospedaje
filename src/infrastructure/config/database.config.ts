@@ -19,6 +19,6 @@ export const databaseConfig: TypeOrmModuleOptions = {
     ConfiguracionSchema,
     UsuarioSchema, // <-- 2. REGISTRARLO AQUÍ PARA QUE TYPEORM LO MAPEE
   ],
-  synchronize: true, // Al estar en true, creará la tabla 'usuarios' automáticamente si no existe
-  logging: true,
+  synchronize: process.env.DB_SYNCHRONIZE === 'true', // Desactivado por defecto (false) para proteger datos en servidor
+  logging: process.env.NODE_ENV !== 'production',
 };

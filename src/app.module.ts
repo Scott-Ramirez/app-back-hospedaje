@@ -60,8 +60,8 @@ import { ReservaSchema } from './infrastructure/reservas/persistence/reserva.sch
           NotificacionSchema,
           ReservaSchema,
         ],
-        synchronize: true, // Auto-creará la tabla 'reservas' en la DB
-        logging: true,
+        synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true', // Desactivado por defecto (false) para proteger la DB en el servidor
+        logging: process.env.NODE_ENV !== 'production',
       }),
     }),
 
