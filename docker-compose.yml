@@ -6,8 +6,10 @@ services:
     container_name: hospedaje-mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: hospedaje_db
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
@@ -22,17 +24,17 @@ services:
     env_file:
       - .env
     environment:
-      - PORT=${PORT:-3000}
-      - DB_HOST=${DB_HOST:-database}
-      - DB_PORT=${DB_PORT:-3306}
-      - DB_USERNAME=${DB_USERNAME:-root}
-      - DB_PASSWORD=${DB_PASSWORD:-root}
-      - DB_DATABASE=${DB_DATABASE:-hospedaje_db}
-      - JWT_SECRET=${JWT_SECRET:-super_secret_token_key_123!}
-      - DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME:-admin}
-      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-admin123!}
-      - DEFAULT_ADMIN_NOMBRE=${DEFAULT_ADMIN_NOMBRE:-Administrador General}
-      - DB_SYNCHRONIZE=${DB_SYNCHRONIZE:-false}
+      - PORT=${PORT}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
+      - JWT_SECRET=${JWT_SECRET}
+      - DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
+      - DEFAULT_ADMIN_NOMBRE=${DEFAULT_ADMIN_NOMBRE}
+      - DB_SYNCHRONIZE=${DB_SYNCHRONIZE}
     depends_on:
       - database
     volumes:
