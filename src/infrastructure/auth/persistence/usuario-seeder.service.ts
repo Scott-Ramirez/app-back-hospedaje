@@ -91,10 +91,11 @@ export class UsuarioSeederService implements OnApplicationBootstrap {
         }
         this.logger.log(`¡Usuario administrador '${username}' (${nombre}) sincronizado con éxito!`);
       } else {
-        // Si ya existe pero el nombre o contraseña cambiaron en el .env, actualizarlo
-        if (usuarioExistente.nombre !== nombre) {
-          this.logger.log(`Actualizando nombre de administrador a: '${nombre}'`);
+        // Si ya existe en MySQL (incluso si coincidió case-insensitive), forzamos la actualización exacta de username y nombre
+        if (usuarioExistente.nombre !== nombre || usuarioExistente.username !== username) {
+          this.logger.log(`Actualizando username a '${username}' y nombre a '${nombre}' para admin ID ${usuarioExistente.id}`);
           await this.usuarioRepo.actualizar(usuarioExistente.id, {
+            username,
             nombre,
           });
         }
