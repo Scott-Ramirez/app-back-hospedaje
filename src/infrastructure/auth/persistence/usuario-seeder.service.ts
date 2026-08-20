@@ -35,73 +35,52 @@ export class UsuarioSeederService implements OnApplicationBootstrap {
   }
 
   private async inicializarUsuarioAdmin() {
-    this.logger.log('Verificando y sincronizando usuario administrador desde .env...');
-
-    // 1. Jalamos las credenciales iniciales definidas en el archivo .env
-    const username = (
-      this.configService.get<string>('DEFAULT_ADMIN_USERNAME') ||
-      process.env.DEFAULT_ADMIN_USERNAME ||
-      'ADMIN'
-    ).trim();
-
-    const password = (
-      this.configService.get<string>('DEFAULT_ADMIN_PASSWORD') ||
-      process.env.DEFAULT_ADMIN_PASSWORD ||
-      'Juan$ias92'
-    ).trim();
-
-    const nombre = (
-      this.configService.get<string>('DEFAULT_ADMIN_NOMBRE') ||
-      process.env.DEFAULT_ADMIN_NOMBRE ||
-      'Juan Eduardo Sias Fasabi'
-    ).trim();
-
-    this.logger.log(`Datos del Admin a sincronizar -> Usuario: '${username}', Nombre: '${nombre}'`);
+    this.logger.log('Comprobando existencia de usuarios en el sistema...');
 
     try {
-      // 2. Comprobamos si el usuario administrador ya existe
-      const usuarioExistente = await this.usuarioRepo.buscarPorUsername(username);
+      const usuarios = await this.usuarioRepo.obtenerTodos();
+
+      // Si ya existe al menos un usuario en el sistema, no modificamos nada al reiniciar
+      if (usuarios && usuarios.length > 0) {
+        this.logger.log(`Base de datos ya cuenta con ${usuarios.length} usuario(s). No se modifican credenciales existentes.`);
+        return;
+      }
+
+      // Solo si la base de datos está completamente vacía (instalación inicial), creamos el admin:
+      const username = (
+        this.configService.get<string>('DEFAULT_ADMIN_USERNAME') ||
+        process.env.DEFAULT_ADMIN_USERNAME ||
+        'ADMIN'
+      ).trim();
+
+      const password = (
+        this.configService.get<string>('DEFAULT_ADMIN_PASSWORD') ||
+        process.env.DEFAULT_ADMIN_PASSWORD ||
+        'Juan$ias92'
+      ).trim();
+
+      const nombre = (
+        this.configService.get<string>('DEFAULT_ADMIN_NOMBRE') ||
+        process.env.DEFAULT_ADMIN_NOMBRE ||
+        'Juan Eduardo Sias Fasabi'
+      ).trim();
+
+      this.logger.warn(`Base de datos vacía. Creando cuenta inicial de administrador: '${nombre}' ('${username}')...`);
       const saltRounds = 10;
       const passwordHash = await bcrypt.hash(password, saltRounds);
 
-      if (!usuarioExistente) {
-        // Verificar si hay algún admin con id 1 o nombre antiguo para actualizarlo
-        const todos = await this.usuarioRepo.obtenerTodos();
-        const primerAdmin = todos.find(u => u.rol === 'admin' || u.id === 1);
+      await this.usuarioRepo.crear({
+        username,
+        passwordHash,
+        nombre,
+        rol: 'admin',
+        activo: true,
+        debeChangiarPassword: true,
+      });
 
-        if (primerAdmin) {
-          this.logger.log(`Actualizando datos del administrador ID ${primerAdmin.id} a: '${nombre}' ('${username}')`);
-          await this.usuarioRepo.actualizar(primerAdmin.id, {
-            username,
-            nombre,
-            passwordHash,
-            rol: 'admin',
-            activo: true,
-          });
-        } else {
-          this.logger.warn(`Creando cuenta de administrador: '${nombre}' ('${username}')...`);
-          await this.usuarioRepo.crear({
-            username,
-            passwordHash,
-            nombre,
-            rol: 'admin',
-            activo: true,
-            debeChangiarPassword: true,
-          });
-        }
-        this.logger.log(`¡Usuario administrador '${username}' (${nombre}) sincronizado con éxito!`);
-      } else {
-        // Si ya existe en MySQL, actualizamos username, nombre y contraseña del .env
-        this.logger.log(`Actualizando credenciales completas de '${username}' (${nombre})`);
-        await this.usuarioRepo.actualizar(usuarioExistente.id, {
-          username,
-          nombre,
-          passwordHash,
-        });
-        this.logger.log(`¡Usuario administrador '${username}' (${nombre}) ya está al día con su contraseña!`);
-      }
+      this.logger.log(`¡Cuenta de administrador inicial creada con éxito!`);
     } catch (error) {
-      this.logger.error('Error al intentar inicializar el usuario administrador:', error);
+      this.logger.error('Error al verificar/inicializar usuario administrador:', error);
     }
   }
 }
