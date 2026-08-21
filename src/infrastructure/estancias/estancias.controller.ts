@@ -149,6 +149,70 @@ export class EstanciasController {
   }
 
   /**
+   * Ampliación de estadía / Registro de noches adicionales por adelantado.
+   * Actualiza la fecha de salida programada y registra el abono correspondiente en la caja activa.
+   */
+  @Post(':id/extender')
+  @Roles('admin', 'supervisor', 'recepcionista')
+  async extenderEstadia(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: { nuevaFechaSalida: string; diasAdicionales?: number; monto?: number; metodoPago?: any; concepto?: string }
+  ) {
+    const activa = await this.cajaSesionService.obtenerActiva(req.user.id);
+    if (req.user.rol === 'recepcionista' && !activa) {
+      throw new BadRequestException('Debe abrir caja antes de registrar un cobro por ampliación de estadía.');
+    }
+
+    const estancia = await this.estanciaRepo.obtenerPorId(id);
+    if (!estancia) {
+      throw new BadRequestException('Estancia no encontrada.');
+    }
+
+    if (estancia.estado === 'finalizado') {
+      throw new BadRequestException('No se puede ampliar una estancia que ya ha finalizado.');
+    }
+
+    const nuevaFecha = new Date(dto.nuevaFechaSalida);
+    if (isNaN(nuevaFecha.getTime())) {
+      throw new BadRequestException('Fecha de salida programada inválida.');
+    }
+
+    const monto = Number(dto.monto || 0);
+    let resultadoPago: any = null;
+
+    if (monto > 0) {
+      if (!dto.metodoPago) {
+        throw new BadRequestException('Debe especificar el método de pago.');
+      }
+      resultadoPago = await this.cobranzaService.registrarPago({
+        estanciaId: id,
+        huespedId: estancia.huespedId,
+        monto,
+        metodoPago: dto.metodoPago,
+        concepto: dto.concepto || `Ampliación de estadía (+${dto.diasAdicionales || 1} noche(s))`,
+        sesionCajaId: activa?.id || null,
+      });
+    }
+
+    // Actualizamos la fecha de salida programada y sincronizamos el total acumulado pagado
+    const estadoCuenta = await this.cobranzaService.obtenerEstadoCuenta(id);
+    const nuevoTotalPagado = estadoCuenta.totalPagos;
+
+    const estanciaActualizada = await this.estanciaRepo.actualizar(id, {
+      fecha_salida_programada: nuevaFecha,
+      total_pagar: nuevoTotalPagado,
+    });
+
+    return {
+      ok: true,
+      mensaje: `Estadía ampliada exitosamente hasta el ${nuevaFecha.toLocaleString('es-PE')}`,
+      estancia: estanciaActualizada,
+      pago: resultadoPago,
+    };
+  }
+
+  /**
    * Proceso de Check-out (Libera habitación y cierra estancia).
    * Permitido para todo el personal operativo para agilizar la salida del cliente.
    */
