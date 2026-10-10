@@ -30,10 +30,21 @@ export class CajaSesionesController {
   @Roles('admin', 'supervisor', 'recepcionista')
   async cerrarCaja(
     @Req() req: any,
-    @Body() dto: { montoReal: number; observaciones?: string }
+    @Body() dto: { 
+      montoReal: number; 
+      observaciones?: string;
+      montoEntregadoAdmin?: number;
+      montoDejadoCaja?: number;
+    }
   ) {
     const usuarioId = req.user.id;
-    return await this.cajaSesionService.cerrar(usuarioId, dto.montoReal, dto.observaciones);
+    return await this.cajaSesionService.cerrar(
+      usuarioId, 
+      dto.montoReal, 
+      dto.observaciones,
+      dto.montoEntregadoAdmin,
+      dto.montoDejadoCaja
+    );
   }
 
   @Patch(':id/conciliar')
@@ -50,8 +61,7 @@ export class CajaSesionesController {
   @Get('ultimo-cierre')
   @Roles('admin', 'supervisor', 'recepcionista')
   async obtenerUltimoCierre() {
-    const monto = await this.cajaSesionService.obtenerUltimoCierre();
-    return { ultimoMontoCierre: monto };
+    return await this.cajaSesionService.obtenerUltimoCierre();
   }
 
   @Get('pagos')

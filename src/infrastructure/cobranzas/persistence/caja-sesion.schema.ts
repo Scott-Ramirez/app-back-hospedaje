@@ -83,6 +83,30 @@ export const CajaSesionSchema = new EntitySchema<CajaSesion>({
         from: (value: string) => (value ? parseFloat(value) : null) as any,
       },
     },
+    monto_entregado_admin: {
+      type: 'decimal',
+      precision: 10,
+      scale: 2,
+      nullable: true,
+      default: 0,
+      transformer: {
+        to: (value: number | null | undefined) => (value !== undefined && value !== null ? Number(value) : 0),
+        from: (value: string | null) => (value ? parseFloat(value) : 0),
+      },
+      name: 'monto_entregado_admin',
+    },
+    monto_dejado_caja: {
+      type: 'decimal',
+      precision: 10,
+      scale: 2,
+      nullable: true,
+      default: 0,
+      transformer: {
+        to: (value: number | null | undefined) => (value !== undefined && value !== null ? Number(value) : 0),
+        from: (value: string | null) => (value ? parseFloat(value) : 0),
+      },
+      name: 'monto_dejado_caja',
+    },
     descuadre: {
       type: 'decimal',
       precision: 10,

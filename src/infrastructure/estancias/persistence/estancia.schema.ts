@@ -37,6 +37,16 @@ export const EstanciaSchema = new EntitySchema<Estancia>({
         from: (value: string) => parseFloat(value),
       },
     },
+    precio_noche: {
+      type: 'decimal',
+      precision: 10,
+      scale: 2,
+      nullable: true,
+      transformer: {
+        to: (value: number | null | undefined) => (value !== undefined && value !== null ? Number(value) : null),
+        from: (value: string | null) => (value ? parseFloat(value) : null),
+      },
+    },
     estado: {
       type: 'enum',
       enum: ['pendiente', 'pagado', 'finalizado'],

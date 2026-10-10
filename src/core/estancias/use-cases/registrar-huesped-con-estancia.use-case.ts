@@ -137,6 +137,10 @@ export class RegistrarHuespedConEstanciaUseCase {
 
         total_pagar: dto.pago_inicial || 0,
 
+        precio_noche: dto.precio_noche !== undefined && dto.precio_noche !== null
+          ? Number(dto.precio_noche)
+          : Number(habitacion.precio || 0),
+
         estado:'pendiente',
 
       });

@@ -11,6 +11,8 @@ export class CajaSesion {
   monto_ingresos_digital: number = 0;
   monto_egresos!: number;
   monto_real_entregado?: number | null;
+  monto_entregado_admin?: number | null;
+  monto_dejado_caja?: number | null;
   descuadre?: number | null;
   estado: EstadoCajaSesion = 'abierta';
   observaciones?: string | null;

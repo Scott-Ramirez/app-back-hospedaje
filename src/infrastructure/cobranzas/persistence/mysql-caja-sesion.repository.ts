@@ -52,6 +52,7 @@ export class MySqlCajaSesionRepository implements ICajaSesionRepository {
   async obtenerUltimaCerrada(): Promise<CajaSesion | null> {
     return await this.repository.findOne({
       where: { estado: 'cerrada' },
+      relations: { usuario: true },
       order: { fecha_cierre: 'DESC' },
     });
   }

@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { ICajaSesionRepository } from '../interfaces/caja-sesion-repository.interface';
@@ -26,11 +26,12 @@ export class CajaSesionService {
   async abrir(usuarioId: number, montoInicial: number, usuarioNombre: string): Promise<CajaSesion> {
     const activa = await this.repository.obtenerActivaPorUsuario(usuarioId);
     if (activa) {
-      throw new Error('Ya tiene una sesión de caja abierta en su turno.');
+      throw new BadRequestException('Ya tiene una sesión de caja abierta en su turno.');
     }
 
     // Consultar el último cierre para comprobar discrepancias de traspaso
-    const ultimoCierre = await this.obtenerUltimoCierre();
+    const infoUltimo = await this.obtenerUltimoCierre();
+    const ultimoCierre = infoUltimo.ultimoMontoCierre;
     const difTraspaso = Number(montoInicial) - ultimoCierre;
 
     const nuevaSesion = await this.repository.crear({
@@ -43,13 +44,13 @@ export class CajaSesionService {
       conciliado: true, // Se abre limpia
     });
 
-    // Si hay discrepancia de traspaso vs. el turno anterior (> 0.01 centavos)
-    if (Math.abs(difTraspaso) >= 0.01) {
+    // Si hay un turno previo y hay discrepancia de traspaso vs. lo que dejó el turno anterior (> 0.01 centavos)
+    if (infoUltimo.tieneTurnoPrevio && Math.abs(difTraspaso) >= 0.01) {
       // 1. Guardar en bitácora de auditoría
       await this.actividadRepo.save(this.actividadRepo.create({
         usuario: usuarioNombre,
         accion: 'DISCREPANCIA_TRASPASO_CAJA',
-        descripcion: `Recibió S/. ${montoInicial.toFixed(2)}, pero el turno anterior cerró con S/. ${ultimoCierre.toFixed(2)} (Discrepancia: S/. ${difTraspaso.toFixed(2)})`,
+        descripcion: `Recibió S/. ${Number(montoInicial).toFixed(2)}, pero el turno anterior dejó en caja S/. ${ultimoCierre.toFixed(2)} (Discrepancia: S/. ${difTraspaso.toFixed(2)})`,
       }));
 
       // 2. Notificar por WebSocket en tiempo real a Admin/Supervisor
@@ -110,10 +111,16 @@ export class CajaSesionService {
     return activa;
   }
 
-  async cerrar(usuarioId: number, montoReal: number, observaciones?: string): Promise<CajaSesion> {
+  async cerrar(
+    usuarioId: number,
+    montoReal: number,
+    observaciones?: string,
+    montoEntregadoAdmin?: number,
+    montoDejadoCaja?: number,
+  ): Promise<CajaSesion> {
     const activa = await this.obtenerActiva(usuarioId);
     if (!activa) {
-      throw new Error('No se encontró una sesión de caja abierta para cerrar.');
+      throw new BadRequestException('No se encontró una sesión de caja abierta para cerrar.');
     }
 
     const ingresos = activa.monto_ingresos;
@@ -126,6 +133,21 @@ export class CajaSesionService {
     const descuadre = Number(montoReal) - esperadoFisico;
     const esDescuadrado = Math.abs(descuadre) >= 0.01;
 
+    // Destino del efectivo contado:
+    // Si el usuario especificó cuánto entrega a admin o cuánto deja en caja
+    let entregadoAdmin = 0;
+    let dejadoCaja = Number(montoReal);
+
+    if (montoEntregadoAdmin !== undefined && montoEntregadoAdmin !== null) {
+      entregadoAdmin = Number(montoEntregadoAdmin);
+      dejadoCaja = montoDejadoCaja !== undefined && montoDejadoCaja !== null
+        ? Number(montoDejadoCaja)
+        : Math.max(0, Number(montoReal) - entregadoAdmin);
+    } else if (montoDejadoCaja !== undefined && montoDejadoCaja !== null) {
+      dejadoCaja = Number(montoDejadoCaja);
+      entregadoAdmin = Math.max(0, Number(montoReal) - dejadoCaja);
+    }
+
     const actualizada = await this.repository.actualizar(activa.id, {
       fecha_cierre: new Date(),
       monto_ingresos: ingresos,
@@ -133,24 +155,26 @@ export class CajaSesionService {
       monto_ingresos_digital: ingresosDigital,
       monto_egresos: egresos,
       monto_real_entregado: Number(montoReal),
+      monto_entregado_admin: entregadoAdmin,
+      monto_dejado_caja: dejadoCaja,
       descuadre,
       estado: 'cerrada',
       observaciones: observaciones || null,
       conciliado: !esDescuadrado, // false si hay descuadre, para que requiera aprobación admin
     });
 
-    // Si se cerró con descuadre, alertamos
-    if (esDescuadrado) {
-      const recepcionista = activa.usuario?.nombre || `Usuario #${usuarioId}`;
-      
-      // 1. Guardar en bitácora de auditoría
-      await this.actividadRepo.save(this.actividadRepo.create({
-        usuario: recepcionista,
-        accion: 'CIERRE_CAJA_DESCUADRE',
-        descripcion: `Cerró caja con descuadre de S/. ${descuadre.toFixed(2)} (Físico: S/. ${montoReal.toFixed(2)}, Esperado: S/. ${esperadoFisico.toFixed(2)})`,
-      }));
+    const recepcionista = activa.usuario?.nombre || `Usuario #${usuarioId}`;
+    const descActividad = `Cierre de turno. Efectivo contado: S/. ${Number(montoReal).toFixed(2)} (Esperado: S/. ${esperadoFisico.toFixed(2)}). Entregado al Admin: S/. ${entregadoAdmin.toFixed(2)}. Fondo dejado en caja: S/. ${dejadoCaja.toFixed(2)}.${esDescuadrado ? ` Descuadre: S/. ${descuadre.toFixed(2)}` : ' (Cuadrada)'}`;
 
-      // 2. Notificar por WebSocket en tiempo real a Admin/Supervisor
+    // Guardar en bitácora de auditoría
+    await this.actividadRepo.save(this.actividadRepo.create({
+      usuario: recepcionista,
+      accion: esDescuadrado ? 'CIERRE_CAJA_DESCUADRE' : 'CIERRE_CAJA',
+      descripcion: descActividad,
+    }));
+
+    // Si se cerró con descuadre, alertamos en tiempo real
+    if (esDescuadrado) {
       if (this.notificacionesGateway?.server) {
         this.notificacionesGateway.server.emit('caja.descuadre_cierre', {
           tipo: 'descuadre_cierre',
@@ -158,6 +182,8 @@ export class CajaSesionService {
           montoEsperado: esperadoFisico,
           montoReal: Number(montoReal),
           descuadre,
+          entregadoAdmin,
+          dejadoCaja,
           observaciones: observaciones || 'Sin observaciones',
           timestamp: new Date(),
         });
@@ -223,9 +249,37 @@ export class CajaSesionService {
     });
   }
 
-  async obtenerUltimoCierre(): Promise<number> {
+  async obtenerUltimoCierre(): Promise<{
+    ultimoMontoCierre: number;
+    montoEntregadoAdmin: number;
+    montoDejadoCaja: number;
+    montoRealEntregado: number;
+    tieneTurnoPrevio: boolean;
+    nombreUsuarioCierre?: string;
+    fechaCierre?: Date;
+  }> {
     const ultimo = await this.repository.obtenerUltimaCerrada();
-    if (!ultimo) return 0;
-    return Number(ultimo.monto_real_entregado || 0);
+    if (!ultimo) {
+      return {
+        ultimoMontoCierre: 0,
+        montoEntregadoAdmin: 0,
+        montoDejadoCaja: 0,
+        montoRealEntregado: 0,
+        tieneTurnoPrevio: false,
+      };
+    }
+    const dejado = ultimo.monto_dejado_caja !== undefined && ultimo.monto_dejado_caja !== null
+      ? Number(ultimo.monto_dejado_caja)
+      : Number(ultimo.monto_real_entregado || 0);
+
+    return {
+      ultimoMontoCierre: dejado,
+      montoEntregadoAdmin: Number(ultimo.monto_entregado_admin || 0),
+      montoDejadoCaja: dejado,
+      montoRealEntregado: Number(ultimo.monto_real_entregado || 0),
+      tieneTurnoPrevio: true,
+      nombreUsuarioCierre: ultimo.usuario?.nombre || ultimo.usuario?.username || 'Turno anterior',
+      fechaCierre: ultimo.fecha_cierre || undefined,
+    };
   }
 }

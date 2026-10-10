@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Patch, Param, Query, UseGuards, Inject, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Patch, Param, Query, UseGuards, Inject, Req, BadRequestException, NotFoundException } from '@nestjs/common';
 import { UseInterceptors, ClassSerializerInterceptor } from '@nestjs/common';
 import { RegistrarHuespedConEstanciaUseCase } from '../../core/estancias/use-cases/registrar-huesped-con-estancia.use-case';
 import { FinalizarEstanciaUseCase } from '../../core/estancias/use-cases/finalizar-estancia.use-case';
@@ -39,10 +39,12 @@ export class EstanciasController {
   async obtenerHistorial(
     @Query('termino') termino?: string,
     @Query('pagina') pagina?: string,
+    @Query('limite') limite?: string,
   ) {
     return await this.consultarHistorialUseCase.execute({
       termino,
-      pagina: pagina ? parseInt(pagina, 10) : 1
+      pagina: pagina ? parseInt(pagina, 10) : 1,
+      limite: limite ? parseInt(limite, 10) : 10,
     });
   }
 
@@ -131,7 +133,7 @@ export class EstanciasController {
 
     // Si con el abono registrado se cubre el saldo del tiempo transcurrido, ampliamos automáticamente
     // la fecha de salida programada hasta mañana a las 13:00 hrs para reflejar la estancia al día
-    const precioHabitacion = Number(estancia.habitacion?.precio || 0);
+    const precioHabitacion = estancia.precioPorNoche;
     const montoRequerido = estancia.diasTranscurridos * precioHabitacion;
 
     if (precioHabitacion > 0 && nuevoTotal >= montoRequerido) {
@@ -149,6 +151,44 @@ export class EstanciasController {
   }
 
   /**
+   * Modifica la tarifa/precio por noche pactado para una estancia activa
+   * (útil para descuentos por estadías largas, semanas o meses sin alterar el catálogo de habitaciones).
+   */
+  @Patch(':id/tarifa')
+  @Roles('admin', 'supervisor', 'recepcionista')
+  async cambiarTarifa(
+    @Param('id') id: string,
+    @Body() dto: { nuevoPrecioNoche: number; motivo?: string }
+  ) {
+    const nuevoPrecio = Number(dto.nuevoPrecioNoche);
+    if (isNaN(nuevoPrecio) || nuevoPrecio <= 0) {
+      throw new BadRequestException('El nuevo precio por noche debe ser un número mayor a 0.');
+    }
+
+    const estancia = await this.estanciaRepo.obtenerPorId(id);
+    if (!estancia) {
+      throw new NotFoundException('Estancia no encontrada.');
+    }
+
+    if (estancia.estado === 'finalizado') {
+      throw new BadRequestException('No se puede cambiar la tarifa de una estancia que ya ha finalizado.');
+    }
+
+    const precioAnterior = estancia.precioPorNoche;
+    const actualizada = await this.estanciaRepo.actualizar(id, {
+      precio_noche: nuevoPrecio,
+    });
+
+    return {
+      ok: true,
+      mensaje: `Tarifa actualizada con éxito de S/. ${precioAnterior.toFixed(2)} a S/. ${nuevoPrecio.toFixed(2)} por noche.`,
+      precioAnterior,
+      nuevoPrecioNoche: nuevoPrecio,
+      estancia: actualizada,
+    };
+  }
+
+  /**
    * Ampliación de estadía / Registro de noches adicionales por adelantado.
    * Actualiza la fecha de salida programada y registra el abono correspondiente en la caja activa.
    */
@@ -157,7 +197,7 @@ export class EstanciasController {
   async extenderEstadia(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() dto: { nuevaFechaSalida: string; diasAdicionales?: number; monto?: number; metodoPago?: any; concepto?: string }
+    @Body() dto: { nuevaFechaSalida: string; diasAdicionales?: number; monto?: number; metodoPago?: any; concepto?: string; nuevoPrecioNoche?: number }
   ) {
     const activa = await this.cajaSesionService.obtenerActiva(req.user.id);
     if (req.user.rol === 'recepcionista' && !activa) {
@@ -166,7 +206,7 @@ export class EstanciasController {
 
     const estancia = await this.estanciaRepo.obtenerPorId(id);
     if (!estancia) {
-      throw new BadRequestException('Estancia no encontrada.');
+      throw new NotFoundException('Estancia no encontrada.');
     }
 
     if (estancia.estado === 'finalizado') {
@@ -185,6 +225,17 @@ export class EstanciasController {
       if (!dto.metodoPago) {
         throw new BadRequestException('Debe especificar el método de pago.');
       }
+
+      // 1. Generar el cargo por la ampliación para mantener la contabilidad balanceada
+      await this.cobranzaService.crearCargo({
+        estanciaId: id,
+        huespedId: estancia.huespedId,
+        monto,
+        concepto: dto.concepto || `Ampliación de estadía (+${dto.diasAdicionales || 1} noche(s))`,
+        sesionCajaId: activa?.id || null,
+      });
+
+      // 2. Registrar el abono en caja
       resultadoPago = await this.cobranzaService.registrarPago({
         estanciaId: id,
         huespedId: estancia.huespedId,
@@ -195,14 +246,20 @@ export class EstanciasController {
       });
     }
 
-    // Actualizamos la fecha de salida programada y sincronizamos el total acumulado pagado
+    // Actualizamos la fecha de salida programada, tarifa negociada y sincronizamos el total acumulado pagado
     const estadoCuenta = await this.cobranzaService.obtenerEstadoCuenta(id);
     const nuevoTotalPagado = estadoCuenta.totalPagos;
 
-    const estanciaActualizada = await this.estanciaRepo.actualizar(id, {
+    const datosActualizacion: any = {
       fecha_salida_programada: nuevaFecha,
       total_pagar: nuevoTotalPagado,
-    });
+    };
+
+    if (dto.nuevoPrecioNoche && Number(dto.nuevoPrecioNoche) > 0) {
+      datosActualizacion.precio_noche = Number(dto.nuevoPrecioNoche);
+    }
+
+    const estanciaActualizada = await this.estanciaRepo.actualizar(id, datosActualizacion);
 
     return {
       ok: true,

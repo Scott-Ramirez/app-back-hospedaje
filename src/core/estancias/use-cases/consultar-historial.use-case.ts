@@ -21,8 +21,7 @@ export class ConsultarHistorialUseCase {
       id: e.id,
       habitacionNumero: e.habitacion?.numero || 'N/A',
       habitacionTipo: e.habitacion?.tipo || 'estandar',
-      // 🌟 CORREGIDO: Cambiado de precioBase a precio para que coincida con tu entidad Habitacion
-      habitacionPrecioBase: Number(e.habitacion?.precio || 0), 
+      habitacionPrecioBase: e.precioPorNoche, 
       huespedNombre: e.huesped?.nombre || 'Anónimo',
       huespedDni: e.huesped?.dni || 'N/A',
       fechaEntrada: e.fecha_entrada,

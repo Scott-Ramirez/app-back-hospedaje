@@ -60,6 +60,15 @@ export class RegistroInicialDto {
   @IsNotEmpty()
   fecha_salida_programada!: string;
 
+  /**
+   * Tarifa pactada por noche (opcional, para rebajas o estancias largas).
+   * Si no se envía, toma el precio base de la habitación.
+   */
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  precio_noche?: number;
+
 
 
   // ==========================
