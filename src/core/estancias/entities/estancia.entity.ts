@@ -14,6 +14,8 @@ export class Estancia {
   total_pagar!: number;
   precio_noche?: number | null;
   estado: EstadoEstancia = 'pendiente';
+  tipo_estancia: 'normal' | 'cortesia' = 'normal';
+  observaciones?: string | null;
   
   createdAt!: Date;
   updatedAt!: Date;
@@ -46,9 +48,13 @@ export class Estancia {
   /**
    * Tarifa por noche efectiva: usa la tarifa acordada para esta estancia
    * si existe; si no, toma el precio base de la habitación en catálogo.
+   * Si es de cortesía o precio_noche es 0, la tarifa es estrictamente 0.
    */
   @Expose()
   get precioPorNoche(): number {
+    if (this.tipo_estancia === 'cortesia') {
+      return 0;
+    }
     if (this.precio_noche !== undefined && this.precio_noche !== null && Number(this.precio_noche) > 0) {
       return Number(this.precio_noche);
     }
@@ -105,6 +111,9 @@ export class Estancia {
    */
   @Expose()
   get montoAcumulado(): number {
+    if (this.tipo_estancia === 'cortesia') {
+      return 0;
+    }
     if (!this._precio) {
       return Number(this.total_pagar || 0);
     }
@@ -117,6 +126,7 @@ export class Estancia {
   @Expose()
   get estaVencida(): boolean {
     if (this.estado === 'finalizado' || this.estado === 'pagado') return false;
+    if (this.tipo_estancia === 'cortesia') return false;
 
     const pagado = Number(this.total_pagar || 0);
     const costoTranscurrido = this.diasTranscurridos * this._precio;

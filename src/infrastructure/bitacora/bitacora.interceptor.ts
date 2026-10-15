@@ -108,6 +108,17 @@ export class BitacoraInterceptor implements NestInterceptor {
                   });
                 }
               }
+            } else if (url.includes('/extender')) {
+              accion = 'EXTENDER_ESTANCIA';
+              const montoCobrado = req.body?.monto ? Number(req.body.monto) : 0;
+              const cobroText = montoCobrado > 0 ? `, cobrando S/. ${montoCobrado.toFixed(2)}` : '';
+              const obsText = req.body?.observaciones ? ` (Obs: ${req.body.observaciones})` : '';
+              descripcion = `Estadía ampliada (+${req.body?.diasAdicionales || 1} noches) por ${username}${cobroText}${obsText}`;
+            } else if (url.includes('/cambiar-habitacion')) {
+              accion = 'CAMBIAR_HABITACION';
+              const montoCobrado = req.body?.montoDiferencia ? Number(req.body.montoDiferencia) : 0;
+              const cobroText = montoCobrado > 0 ? `, cobrando diferencia de S/. ${montoCobrado.toFixed(2)}` : '';
+              descripcion = `Cambio de habitación procesado por ${username}: ${req.body?.motivo || ''}${cobroText}`;
             }
           } else if (url.includes('/configuraciones')) {
             if (method === 'PATCH') {

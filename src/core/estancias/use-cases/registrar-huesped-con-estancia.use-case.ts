@@ -123,6 +123,13 @@ export class RegistrarHuespedConEstanciaUseCase {
     // 3. Crear estancia
     // ==========================
 
+    const esCortesia = dto.tipo_estancia === 'cortesia';
+    const precioNocheFinal = esCortesia
+      ? 0
+      : (dto.precio_noche !== undefined && dto.precio_noche !== null
+          ? Number(dto.precio_noche)
+          : Number(habitacion.precio || 0));
+
     const estancia =
       await this.estanciaRepository.crear({
 
@@ -135,13 +142,15 @@ export class RegistrarHuespedConEstanciaUseCase {
         fecha_salida_programada:
           new Date(dto.fecha_salida_programada),
 
-        total_pagar: dto.pago_inicial || 0,
+        total_pagar: esCortesia ? 0 : (dto.pago_inicial || 0),
 
-        precio_noche: dto.precio_noche !== undefined && dto.precio_noche !== null
-          ? Number(dto.precio_noche)
-          : Number(habitacion.precio || 0),
+        precio_noche: precioNocheFinal,
 
-        estado:'pendiente',
+        estado: esCortesia ? 'pagado' : 'pendiente',
+
+        tipo_estancia: esCortesia ? 'cortesia' : 'normal',
+
+        observaciones: dto.observaciones || (esCortesia ? 'Cortesía / Familiar sin cobro' : undefined),
 
       });
 
@@ -159,24 +168,27 @@ export class RegistrarHuespedConEstanciaUseCase {
 
 
     // ==========================
-    // 5. Crear cargo inicial
+    // 5. Crear cargo inicial (sólo si no es cortesía)
     // ==========================
 
-    await this.cobranzaService.crearCargo({
-      estanciaId: estancia.id,
-      huespedId: huesped.id,
-      monto: dto.total_pagar,
-      concepto: 'Hospedaje',
-      sesionCajaId,
-    });
+    if (!esCortesia && Number(dto.total_pagar) > 0) {
+      await this.cobranzaService.crearCargo({
+        estanciaId: estancia.id,
+        huespedId: huesped.id,
+        monto: dto.total_pagar,
+        concepto: 'Hospedaje',
+        sesionCajaId,
+      });
+    }
 
 
 
     // ==========================
-    // 6. Registrar pago inicial
+    // 6. Registrar pago inicial (sólo si no es cortesía)
     // ==========================
 
     if(
+      !esCortesia &&
       dto.pago_inicial &&
       dto.pago_inicial > 0
     ){

@@ -6,6 +6,7 @@ import { ListarEstanciasUseCase } from '../../core/estancias/use-cases/listar-es
 import { ConsultarHistorialUseCase } from '../../core/estancias/use-cases/consultar-historial.use-case';
 import { RegistroInicialDto } from '../../core/estancias/dtos/registro-inicial.dto';
 import type { IEstanciaRepository } from '../../core/estancias/interfaces/estancia-repository.interface';
+import type { IHabitacionRepository } from '../../core/habitaciones/interfaces/habitacion-repository.interface';
 import { CobranzaService } from '../../core/cobranzas/services/cobranza.service';
 import { CajaSesionService } from '../../core/cobranzas/services/caja-sesion.service';
 
@@ -28,6 +29,8 @@ export class EstanciasController {
     private readonly cajaSesionService: CajaSesionService,
     @Inject('IEstanciaRepository')
     private readonly estanciaRepo: IEstanciaRepository,
+    @Inject('IHabitacionRepository')
+    private readonly habitacionRepo: IHabitacionRepository,
   ) { }
 
   /**
@@ -56,7 +59,8 @@ export class EstanciasController {
   @Roles('admin', 'supervisor', 'recepcionista')
   async checkIn(@Req() req: any, @Body() dto: RegistroInicialDto) {
     const activa = await this.cajaSesionService.obtenerActiva(req.user.id);
-    if (req.user.rol === 'recepcionista' && !activa) {
+    const esCortesia = dto.tipo_estancia === 'cortesia' || (Number(dto.total_pagar) === 0 && Number(dto.pago_inicial || 0) === 0);
+    if (!esCortesia && req.user.rol === 'recepcionista' && !activa) {
       throw new BadRequestException('Debe abrir caja antes de realizar un Check-In.');
     }
     return await this.registrarHuespedConEstanciaUseCase.execute(dto, activa?.id);
@@ -197,7 +201,15 @@ export class EstanciasController {
   async extenderEstadia(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() dto: { nuevaFechaSalida: string; diasAdicionales?: number; monto?: number; metodoPago?: any; concepto?: string; nuevoPrecioNoche?: number }
+    @Body() dto: {
+      nuevaFechaSalida: string;
+      diasAdicionales?: number;
+      monto?: number;
+      metodoPago?: any;
+      concepto?: string;
+      nuevoPrecioNoche?: number;
+      observaciones?: string;
+    }
   ) {
     const activa = await this.cajaSesionService.obtenerActiva(req.user.id);
     if (req.user.rol === 'recepcionista' && !activa) {
@@ -255,8 +267,14 @@ export class EstanciasController {
       total_pagar: nuevoTotalPagado,
     };
 
-    if (dto.nuevoPrecioNoche && Number(dto.nuevoPrecioNoche) > 0) {
+    if (dto.nuevoPrecioNoche !== undefined && dto.nuevoPrecioNoche !== null && Number(dto.nuevoPrecioNoche) >= 0) {
       datosActualizacion.precio_noche = Number(dto.nuevoPrecioNoche);
+    }
+
+    if (dto.observaciones && dto.observaciones.trim()) {
+      datosActualizacion.observaciones = estancia.observaciones
+        ? `${estancia.observaciones} | ${dto.observaciones.trim()}`
+        : dto.observaciones.trim();
     }
 
     const estanciaActualizada = await this.estanciaRepo.actualizar(id, datosActualizacion);
@@ -264,6 +282,128 @@ export class EstanciasController {
     return {
       ok: true,
       mensaje: `Estadía ampliada exitosamente hasta el ${nuevaFecha.toLocaleString('es-PE')}`,
+      estancia: estanciaActualizada,
+      pago: resultadoPago,
+    };
+  }
+
+  /**
+   * Cambio de Habitación (Transfer de habitación en estadía activa)
+   * Libera la habitación anterior (pasa a limpieza), ocupa la nueva habitación
+   * y si hay cobro por diferencia de tarifa, registra el cargo y abono en la caja activa.
+   */
+  @Post(':id/cambiar-habitacion')
+  @Roles('admin', 'supervisor', 'recepcionista')
+  async cambiarHabitacion(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: {
+      nuevaHabitacionId: string;
+      montoDiferencia?: number;
+      metodoPago?: any;
+      nuevoPrecioNoche?: number;
+      motivo: string;
+    }
+  ) {
+    if (!dto.nuevaHabitacionId) {
+      throw new BadRequestException('Debe especificar la nueva habitación.');
+    }
+    if (!dto.motivo || !dto.motivo.trim()) {
+      throw new BadRequestException('Debe indicar el motivo del cambio de habitación.');
+    }
+
+    const estancia = await this.estanciaRepo.obtenerPorId(id);
+    if (!estancia) {
+      throw new NotFoundException('Estancia no encontrada.');
+    }
+
+    if (estancia.estado === 'finalizado') {
+      throw new BadRequestException('No se puede cambiar la habitación de una estancia finalizada.');
+    }
+
+    if (estancia.habitacionId === dto.nuevaHabitacionId) {
+      throw new BadRequestException('La nueva habitación debe ser diferente a la actual.');
+    }
+
+    const nuevaHabitacion = await this.habitacionRepo.obtenerPorId(dto.nuevaHabitacionId);
+    if (!nuevaHabitacion) {
+      throw new NotFoundException('La nueva habitación no existe.');
+    }
+
+    if (nuevaHabitacion.estado !== 'disponible') {
+      throw new BadRequestException(`La habitación Nº ${nuevaHabitacion.numero} no está disponible (Estado actual: ${nuevaHabitacion.estado}).`);
+    }
+
+    const habitacionAnterior = estancia.habitacion;
+    const numHabAnterior = habitacionAnterior?.numero || 'N/A';
+    const numHabNueva = nuevaHabitacion.numero;
+
+    const montoDiferencia = Number(dto.montoDiferencia || 0);
+    let resultadoPago: any = null;
+
+    if (montoDiferencia > 0) {
+      const activa = await this.cajaSesionService.obtenerActiva(req.user.id);
+      if (req.user.rol === 'recepcionista' && !activa) {
+        throw new BadRequestException('Debe abrir caja antes de registrar un cobro por diferencia de cambio de habitación.');
+      }
+      if (!dto.metodoPago) {
+        throw new BadRequestException('Debe especificar el método de pago para el cobro de la diferencia.');
+      }
+
+      // 1. Cargo por la diferencia de habitación
+      await this.cobranzaService.crearCargo({
+        estanciaId: id,
+        huespedId: estancia.huespedId,
+        monto: montoDiferencia,
+        concepto: `Diferencia por cambio a Hab. ${numHabNueva} (desde Hab. ${numHabAnterior}): ${dto.motivo.trim()}`,
+        sesionCajaId: activa?.id || null,
+      });
+
+      // 2. Abono en caja
+      resultadoPago = await this.cobranzaService.registrarPago({
+        estanciaId: id,
+        huespedId: estancia.huespedId,
+        monto: montoDiferencia,
+        metodoPago: dto.metodoPago,
+        concepto: `Cobro por cambio a Hab. ${numHabNueva} (desde Hab. ${numHabAnterior}): ${dto.motivo.trim()}`,
+        sesionCajaId: activa?.id || null,
+      });
+    }
+
+    // 3. Pasar la habitación anterior a 'limpieza'
+    if (habitacionAnterior) {
+      await this.habitacionRepo.actualizarEstadoPorNumero(habitacionAnterior.numero, 'limpieza' as any);
+    }
+
+    // 4. Pasar la nueva habitación a 'ocupado'
+    await this.habitacionRepo.actualizarEstadoPorNumero(nuevaHabitacion.numero, 'ocupado' as any);
+
+    // 5. Actualizar la estancia
+    const estadoCuenta = await this.cobranzaService.obtenerEstadoCuenta(id);
+    const nuevoTotalPagado = estadoCuenta.totalPagos;
+
+    const notaCambio = `Cambio de Hab. ${numHabAnterior} a ${numHabNueva} (${dto.motivo.trim()})`;
+    const observacionesActualizadas = estancia.observaciones
+      ? `${estancia.observaciones} | ${notaCambio}`
+      : notaCambio;
+
+    const datosActualizacion: any = {
+      habitacionId: dto.nuevaHabitacionId,
+      total_pagar: nuevoTotalPagado,
+      observaciones: observacionesActualizadas,
+    };
+
+    if (dto.nuevoPrecioNoche !== undefined && dto.nuevoPrecioNoche !== null && Number(dto.nuevoPrecioNoche) >= 0) {
+      datosActualizacion.precio_noche = Number(dto.nuevoPrecioNoche);
+    } else if (estancia.tipo_estancia !== 'cortesia') {
+      datosActualizacion.precio_noche = Number(nuevaHabitacion.precio || 0);
+    }
+
+    const estanciaActualizada = await this.estanciaRepo.actualizar(id, datosActualizacion);
+
+    return {
+      ok: true,
+      mensaje: `Habitación cambiada exitosamente de la ${numHabAnterior} a la ${numHabNueva}.`,
       estancia: estanciaActualizada,
       pago: resultadoPago,
     };

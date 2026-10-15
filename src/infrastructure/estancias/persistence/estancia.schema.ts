@@ -52,6 +52,15 @@ export const EstanciaSchema = new EntitySchema<Estancia>({
       enum: ['pendiente', 'pagado', 'finalizado'],
       default: 'pendiente',
     },
+    tipo_estancia: {
+      type: 'varchar',
+      length: 20,
+      default: 'normal',
+    },
+    observaciones: {
+      type: 'text',
+      nullable: true,
+    },
     createdAt: {
       type: 'timestamp',
       createDate: true,

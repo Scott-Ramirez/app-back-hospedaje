@@ -26,8 +26,14 @@ export class ConsultarHistorialUseCase {
       huespedDni: e.huesped?.dni || 'N/A',
       fechaEntrada: e.fecha_entrada,
       fechaSalida: e.fecha_salida_real || e.fecha_salida_programada,
-      // CORRECTO: Como la estancia ya cerró, 'total_pagar' tiene el monto final guardado en caja
-      montoTotalPagado: e.total_pagar || e.montoAcumulado 
+      // CORRECTO: Si es cortesía o precio 0, es estrictamente 0. Si no, tomamos total_pagar o montoAcumulado
+      montoTotalPagado: e.tipo_estancia === 'cortesia' || e.precioPorNoche === 0
+        ? 0
+        : (e.total_pagar !== undefined && e.total_pagar !== null && !isNaN(Number(e.total_pagar))
+            ? Number(e.total_pagar)
+            : Number(e.montoAcumulado || 0)),
+      tipoEstancia: e.tipo_estancia || 'normal',
+      observaciones: e.observaciones || null,
     }));
 
     return {

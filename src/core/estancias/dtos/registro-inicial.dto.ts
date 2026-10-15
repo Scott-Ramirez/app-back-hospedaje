@@ -96,4 +96,18 @@ export class RegistroInicialDto {
   @IsOptional()
   metodo_pago?: MetodoPago;
 
+  /**
+   * Tipo de estancia: 'normal' o 'cortesia' (para familiares/amigos del dueño)
+   */
+  @IsString()
+  @IsOptional()
+  tipo_estancia?: 'normal' | 'cortesia';
+
+  /**
+   * Observaciones o motivo de cortesía / acuerdo especial
+   */
+  @IsString()
+  @IsOptional()
+  observaciones?: string;
+
 }
