@@ -13,6 +13,7 @@ import { AuthModule } from './infrastructure/auth/auth.module';
 import { CobranzasModule } from './infrastructure/cobranzas/cobranzas.module';
 import { BitacoraModule } from './infrastructure/bitacora/bitacora.module';
 import { ReservasModule } from './infrastructure/reservas/reservas.module';
+import { JuegosModule } from './infrastructure/juegos/juegos.module';
 
 // Importamos los schemas para que el factory asíncrono los registre en TypeORM
 import { HuespedSchema } from './infrastructure/huespedes/persistence/huesped.schema';
@@ -27,6 +28,7 @@ import { CobranzaSchema } from './infrastructure/cobranzas/persistence/cobranza.
 import { CajaSesionSchema } from './infrastructure/cobranzas/persistence/caja-sesion.schema';
 import { NotificacionSchema } from './infrastructure/notificaciones/persistence/notificacion.schema';
 import { ReservaSchema } from './infrastructure/reservas/persistence/reserva.schema';
+import { JuegoRecordSchema } from './infrastructure/juegos/persistence/juego-record.schema';
 
 @Module({
   imports: [
@@ -60,6 +62,7 @@ import { ReservaSchema } from './infrastructure/reservas/persistence/reserva.sch
           CajaSesionSchema,
           NotificacionSchema,
           ReservaSchema,
+          JuegoRecordSchema,
         ],
         synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true', // Desactivado por defecto (false) para proteger la DB en el servidor
         logging: process.env.NODE_ENV !== 'production',
@@ -77,6 +80,7 @@ import { ReservaSchema } from './infrastructure/reservas/persistence/reserva.sch
     CobranzasModule,
     BitacoraModule,
     ReservasModule,
+    JuegosModule,
   ],
 })
 export class AppModule {}
